@@ -220,6 +220,15 @@ export default function App() {
             ))}
           </nav>
         )}
+        {screen !== 'start' && (() => {
+          const activeIndex = crumbs.findIndex((c) => c.active)
+          const current = crumbs[activeIndex] || crumbs[0]
+          return (
+            <span className="crumbs-mobile" aria-label="Progress">
+              {activeIndex + 1} of {crumbs.length} · {current.label}
+            </span>
+          )
+        })()}
       </header>
 
       <main>

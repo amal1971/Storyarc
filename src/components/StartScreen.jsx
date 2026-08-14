@@ -31,7 +31,6 @@ export function StartScreen({ onLab, onGym }) {
           Record a short story out loud. StoryArc shows the filler words and missing beats
           between you and a story that sticks — then you retell it and watch the difference.
         </p>
-        {health && <StatusChip health={health} />}
       </div>
 
       <div className="mode-grid">
@@ -61,6 +60,12 @@ export function StartScreen({ onLab, onGym }) {
         👀 Curious what feedback looks like? Peek at a sample
       </button>
 
+      {health && (
+        <div className="status-chip-row">
+          <StatusChip health={health} />
+        </div>
+      )}
+
       {showSample && <SampleModal onClose={() => setShowSample(false)} />}
     </div>
   )
@@ -76,7 +81,7 @@ function StatusChip({ health }) {
   }
   return (
     <div className="status-chip status-live">
-      ⚡ Live analysis{health.stt === 'mock' ? ' · transcription: sample' : ` · ${health.stt}`}
+      ⚡ Live analysis{health.stt === 'mock' ? ' · transcription: sample' : ''}
     </div>
   )
 }

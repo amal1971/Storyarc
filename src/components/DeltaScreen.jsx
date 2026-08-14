@@ -7,34 +7,18 @@ const FIX_VERDICT = {
   no: { label: 'Not this round', emoji: '🫥', cls: 'fix-no' },
 }
 
-const ELEMENT_WORDS = {
-  situation: 'a clear setup',
-  complication: 'real trouble',
-  outcome: 'an ending',
-}
-
-function structurePhrase(a1, a2) {
-  const c1 = a1.structure.element_count
-  const c2 = a2.structure.element_count
-  const flagged = a1.structure.flagged_element
-  if (c2 > c1) {
-    if (flagged && a2.structure[`${flagged}_present`]) {
-      return `You went from missing ${ELEMENT_WORDS[flagged]} to a full${c2 === 3 ? '' : 'er'} arc. That’s the move. 🎯`
-    }
-    return 'Your story picked up a piece it was missing — it holds together better now.'
-  }
-  if (c2 === c1) {
-    return c1 === 3
-      ? 'Full arc both times — you kept the whole shape while retelling from memory. 💪'
-      : 'The shape held steady this round. Same bones, told again from memory.'
-  }
-  return 'The retelling dropped a piece of the arc — totally normal when you’re juggling changes. It usually comes back on the next story.'
-}
-
-function fillerPhrase(r1, r2) {
-  if (r2 < r1) return 'Fewer fillers, same you. That’s awareness doing its job. ✨'
-  if (r2 === r1) return 'Filler rate held steady — noticing them is step one.'
-  return 'A few more fillers this time — that happens when you’re focused on the story itself.'
+// Three dots standing in for "story shape" — deliberately not the words
+// situation/complication/outcome/element, which the structure prompt itself
+// is forbidden from using. The comparison card below carries the actual
+// narrative; this is just the at-a-glance shape.
+function ElementDots({ count }) {
+  return (
+    <span className="element-dots" aria-label={`${count} of 3`}>
+      {[0, 1, 2].map((i) => (
+        <span key={i} className={`element-dot ${i < count ? 'element-dot--filled' : ''}`} />
+      ))}
+    </span>
+  )
 }
 
 export function DeltaScreen({ attempt1, attempt2, comparison, onNewStory, onExport }) {
@@ -65,13 +49,16 @@ export function DeltaScreen({ attempt1, attempt2, comparison, onNewStory, onExpo
             <span className="delta-new">{r2}</span>
           </div>
           <div className="delta-unit">fillers per 100 words</div>
-          <p className="delta-phrase">{fillerPhrase(r1, r2)}</p>
         </div>
 
         <div className={`card delta-card ${c2 > c1 ? 'delta-win' : c2 < c1 ? 'delta-loss' : ''}`}>
           <div className="section-tag tag-violet">Craft</div>
-          <p className="delta-phrase big-phrase">{structurePhrase(attempt1, attempt2)}</p>
-          <div className="delta-unit subtle">story elements: {c1} of 3 → {c2} of 3</div>
+          <div className="delta-numbers delta-dots-row">
+            <ElementDots count={c1} />
+            <span className="delta-arrow">→</span>
+            <ElementDots count={c2} />
+          </div>
+          <div className="delta-unit">story shape</div>
         </div>
       </div>
 
@@ -93,7 +80,7 @@ export function DeltaScreen({ attempt1, attempt2, comparison, onNewStory, onExpo
 
           {comparison.what_changed && (
             <>
-              <div className="section-tag tag-coral">What actually changed</div>
+              <div className="section-tag tag-neutral">What actually changed</div>
               <p className="compare-note">{comparison.what_changed}</p>
             </>
           )}

@@ -62,13 +62,14 @@ export function GymFeedbackScreen({ framework, situation, result, onAgain, onNew
 
       <div className="cta-row">
         <button className="btn btn-primary btn-big" onClick={onAgain}>
-          🔁 Run it again
+          🔁 Tell it again — same prompt
         </button>
         <div className="cta-secondary-row">
           <button className="btn btn-ghost" onClick={onNewSituation}>🎲 New situation</button>
           <button className="btn btn-ghost" onClick={onHome}>🏠 Home</button>
         </div>
       </div>
+      <p className="nudge">Round 2 with the shape fresh in your head — that’s where it sticks.</p>
     </div>
   )
 }
