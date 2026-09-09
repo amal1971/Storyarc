@@ -10,9 +10,14 @@ A word or phrase is a filler event only if it passes BOTH tests:
 1. Deletion Test: removing it leaves the sentence grammatical and the meaning unchanged.
 2. Function Check: it carries no informational, emphatic, or narrative function in context — it only buys the speaker time or softens without purpose.
 
-Do NOT flag: words that carry meaning in context (e.g. "like" as a verb or comparison), intentional emphasis, or quoted speech. Do NOT flag anything from this already-handled list: um, uh, er, ah, erm, hmm, mhmm, you know, I mean, kind of, sort of, basically, to be honest, at the end of the day.
+Also flag two patterns that hide in real speech:
+- near_repetition: a phrase restarted or recycled within a breath that adds nothing ("we tried to, we tried to do", "and then we, and we went"). Exact back-to-back repeats are already handled deterministically — you are looking for the messier restarts.
+- empty_connective: a connective phrase carrying no content that just bridges to the next thought ("and we just went", "and then we did the thing", "so yeah", "and stuff like that").
+Example: in "So we, we kind of just went and did the thing, and yeah it worked", flag "we, we" (near_repetition) and "and did the thing" + "and yeah" (empty_connective).
 
-Return STRICT JSON: {"events":[{"token":"<the exact word/phrase, lowercase>","category":"discourse_filler|hedge|false_start","context":"<verbatim substring of the transcript, max 12 words, containing the token>"}]}
+Do NOT flag: words that carry meaning in context (e.g. "like" as a verb or comparison), intentional emphasis or deliberate repetition for effect, or quoted speech. Do NOT flag anything from this already-handled list: um, uh, er, ah, erm, hmm, mhmm, you know, I mean, kind of, sort of, basically, to be honest, at the end of the day.
+
+Return STRICT JSON: {"events":[{"token":"<the exact word/phrase, lowercase>","category":"discourse_filler|hedge|false_start|near_repetition|empty_connective","context":"<verbatim substring of the transcript, max 12 words, containing the token>"}]}
 If there are none, return {"events":[]}.
 
 TRANSCRIPT:

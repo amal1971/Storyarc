@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { SignalRow } from './Signals.jsx'
 
 const VERDICT_META = {
   hit: { label: 'Landed', emoji: '🎯', cls: 'verdict-hit', rank: 2 },
@@ -66,6 +67,13 @@ export function GymDeltaScreen({
             </div>
           ))}
         </div>
+        <p className="metric-line" style={{ marginTop: 14 }}>
+          Fillers: <strong>{attempt1.fillerRateValue} → {attempt2.fillerRateValue}</strong> per 100 words
+          {attempt1.wpm != null && attempt2.wpm != null && (
+            <> · <strong>{attempt1.wpm} → {attempt2.wpm}</strong> words/min</>
+          )}
+        </p>
+        <SignalRow inputMode={attempt2.inputMode} />
       </div>
 
       {comparison && (

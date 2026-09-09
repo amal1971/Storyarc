@@ -1,4 +1,5 @@
 import { TranscriptView } from './TranscriptView.jsx'
+import { SignalRow, TellLine, ConnectedNote } from './Signals.jsx'
 
 // Attempt-1 feedback. Clarity first, craft second, clearly separated.
 // NO numbers-as-grades, NO element labels/checklists, ONE fix max (PRD §13.4).
@@ -41,10 +42,12 @@ export function FeedbackScreen({ prompt, analysis, onRetry, onStartOver }) {
           ) : (
             <>
               <strong>{eventCount} filler{eventCount === 1 ? '' : 's'}</strong> —{' '}
-              <strong>{fillerRateValue} per 100 words</strong>. Just notice them; that’s the whole trick.
+              <strong>{fillerRateValue} per 100 words</strong>. Just notice them — awareness is what makes them fade.
             </>
           )}
         </p>
+        <TellLine events={events} />
+        <SignalRow wpm={analysis.wpm} inputMode={analysis.inputMode} />
       </div>
 
       <div className="card feedback-card">
@@ -54,6 +57,7 @@ export function FeedbackScreen({ prompt, analysis, onRetry, onStartOver }) {
         {structure.evidence && (
           <blockquote className="evidence">“{structure.evidence}”</blockquote>
         )}
+        <ConnectedNote structure={structure} />
         <div className="fix-chip">💡 {structure.suggested_fix}</div>
       </div>
 

@@ -10,6 +10,7 @@ export function buildAttemptRecord({
   pairId, testerId, attemptNumber, promptId, transcript, wordCount,
   fillerEvents, fillerRateValue, structure, retryStarted, sttProvider,
   mode = 'lab', frameworkId = null, situationId = null, frameworkSteps = null,
+  inputMode = 'mic', durationS = null, wpm = null,
 }) {
   return {
     mode,
@@ -21,6 +22,10 @@ export function buildAttemptRecord({
     attempt_number: attemptNumber,
     prompt_id: promptId,
     timestamp: new Date().toISOString(),
+    // How the words got here — keeps exports honest about provenance.
+    input_mode: inputMode, // 'mic' | 'text' | 'sample'
+    duration_s: durationS,
+    wpm,
     transcript,
     word_count: wordCount,
     filler_events: fillerEvents.map((e) => ({
@@ -51,15 +56,56 @@ export function loadRecords() {
   }
 }
 
-export function saveRecord(record) {
-  const records = loadRecords()
-  records.push(record)
+function persist(records) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records))
   } catch {
     // storage full/blocked — session export still works from memory
   }
+}
+
+export function saveRecord(record) {
+  const records = loadRecords()
+  records.push(record)
+  persist(records)
   return records
+}
+
+// Merge extra fields into the most recent record for a pair — used to attach
+// the cross-attempt comparison verdict to attempt 2 after it comes back.
+export function annotatePair(pairId, patch) {
+  const records = loadRecords()
+  for (let i = records.length - 1; i >= 0; i--) {
+    if (records[i].pair_id === pairId) {
+      records[i] = { ...records[i], ...patch }
+      persist(records)
+      return records[i]
+    }
+  }
+  return null
+}
+
+// Group records into rounds (attempt 1 + attempt 2 sharing a pair_id), newest first.
+export function loadPairs() {
+  const byPair = new Map()
+  for (const r of loadRecords()) {
+    if (!byPair.has(r.pair_id)) byPair.set(r.pair_id, { pairId: r.pair_id, mode: r.mode, a1: null, a2: null })
+    const p = byPair.get(r.pair_id)
+    if (r.attempt_number === 2) p.a2 = r
+    else p.a1 = r
+    p.promptId = r.prompt_id
+    p.frameworkId = r.framework_id
+    p.timestamp = p.timestamp && p.timestamp > r.timestamp ? p.timestamp : r.timestamp
+  }
+  return [...byPair.values()].filter((p) => p.a1).sort((a, b) => (a.timestamp < b.timestamp ? 1 : -1))
+}
+
+export function clearSession() {
+  try {
+    localStorage.removeItem(STORAGE_KEY)
+  } catch {
+    // ignore
+  }
 }
 
 export function exportSession(records) {

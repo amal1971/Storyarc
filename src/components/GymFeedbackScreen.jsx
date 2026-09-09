@@ -1,3 +1,5 @@
+import { SignalRow, TellLine } from './Signals.jsx'
+
 const VERDICT_META = {
   hit: { label: 'Landed', emoji: '🎯', cls: 'verdict-hit' },
   partial: { label: 'Almost', emoji: '🌗', cls: 'verdict-partial' },
@@ -42,6 +44,23 @@ export function GymFeedbackScreen({ framework, situation, result, onAgain, onNew
         {feedback_line && <p className="feedback-line gym-line">“{feedback_line}”</p>}
       </div>
 
+      {/* Clarity was always computed for gym runs and never shown — now it is. */}
+      <div className="card feedback-card">
+        <div className="section-tag tag-coral">Clarity</div>
+        <p className="metric-line">
+          {result.eventCount === 0 ? (
+            <>Zero fillers. Seriously clean. 🧼</>
+          ) : (
+            <>
+              <strong>{result.eventCount} filler{result.eventCount === 1 ? '' : 's'}</strong> —{' '}
+              <strong>{result.fillerRateValue} per 100 words</strong>
+            </>
+          )}
+        </p>
+        <TellLine events={result.events} />
+        <SignalRow wpm={result.wpm} inputMode={result.inputMode} />
+      </div>
+
       <div className="card feedback-card retell-card">
         <div className="section-tag tag-sun">Your story, retold through {framework.name}</div>
         <div className="retelling">
@@ -69,7 +88,7 @@ export function GymFeedbackScreen({ framework, situation, result, onAgain, onNew
           <button className="btn btn-ghost" onClick={onHome}>🏠 Home</button>
         </div>
       </div>
-      <p className="nudge">Round 2 with the shape fresh in your head — that’s where it sticks.</p>
+      <p className="nudge">Same situation, so you can watch the shape move. “New situation” starts a fresh round instead.</p>
     </div>
   )
 }

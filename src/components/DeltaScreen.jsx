@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { TranscriptView } from './TranscriptView.jsx'
+import { SignalRow, ConnectedNote } from './Signals.jsx'
+import { topFiller } from '../lib/fillers.js'
 
 const FIX_VERDICT = {
   yes: { label: 'You did it', emoji: '✅', cls: 'fix-yes' },
@@ -32,6 +34,12 @@ export function DeltaScreen({ attempt1, attempt2, comparison, onNewStory, onExpo
     r2 < r1 || c2 > c1 || comparison?.fix_addressed === 'yes' || (c1 === 3 && c2 === 3)
   const verdict = FIX_VERDICT[comparison?.fix_addressed] || null
 
+  // Did the dominant filler from round 1 actually fade? This is the most
+  // specific clarity line the delta can offer, and it costs nothing.
+  const tell1 = topFiller(attempt1.events)
+  const tellCount2 = tell1 ? attempt2.events.filter((e) => e.token === tell1.token).length : 0
+  const tellDropped = tell1 && tellCount2 <= Math.floor(tell1.count / 2)
+
   return (
     <div className="screen delta-screen">
       {improved && <Confetti />}
@@ -49,6 +57,16 @@ export function DeltaScreen({ attempt1, attempt2, comparison, onNewStory, onExpo
             <span className="delta-new">{r2}</span>
           </div>
           <div className="delta-unit">fillers per 100 words</div>
+          {tell1 && (
+            <p className={`tell-line ${tellDropped ? '' : 'tell-line--flat'}`}>
+              “{tell1.token}”: {tell1.count} → {tellCount2}{tellDropped ? ' — your tell faded. ✨' : ''}
+            </p>
+          )}
+          {(attempt1.wpm != null || attempt2.wpm != null) && (
+            <div className="signal-row">
+              <span className="signal">🗣️ {attempt1.wpm ?? '—'} → {attempt2.wpm ?? '—'} words/min</span>
+            </div>
+          )}
         </div>
 
         <div className={`card delta-card ${c2 > c1 ? 'delta-win' : c2 < c1 ? 'delta-loss' : ''}`}>
@@ -93,6 +111,8 @@ export function DeltaScreen({ attempt1, attempt2, comparison, onNewStory, onExpo
       <div className="card feedback-card">
         <div className="section-tag tag-sun">Your second telling</div>
         <TranscriptView text={attempt2.transcript} events={attempt2.events} />
+        <ConnectedNote structure={attempt2.structure} />
+        <SignalRow inputMode={attempt2.inputMode} />
         <p className="metric-line">
           {attempt2.eventCount === 0 ? (
             <>Zero fillers this round. 🧼</>

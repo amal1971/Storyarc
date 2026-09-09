@@ -1,0 +1,220 @@
+[
+  {
+    "id": "clean-01",
+    "note": "No fillers at all — must produce zero events.",
+    "transcript": "Last spring we planned a launch for a Tuesday. The payment sandbox died an hour before. We rewrote the demo to skip checkout and shipped forty minutes late.",
+    "expected": []
+  },
+  {
+    "id": "listed-basic",
+    "note": "Single-word listed fillers, mixed case.",
+    "transcript": "Um, so I was, uh, trying to explain it. Er, it did not go well.",
+    "expected": [
+      {
+        "token": "um",
+        "category": "listed_filler"
+      },
+      {
+        "token": "uh",
+        "category": "listed_filler"
+      },
+      {
+        "token": "er",
+        "category": "listed_filler"
+      }
+    ]
+  },
+  {
+    "id": "listed-phrases",
+    "note": "Multi-word phrases count as ONE event each.",
+    "transcript": "You know, I mean, it was kind of a mess, sort of, basically the whole thing. To be honest, at the end of the day it worked.",
+    "expected": [
+      {
+        "token": "you know",
+        "category": "listed_filler"
+      },
+      {
+        "token": "i mean",
+        "category": "listed_filler"
+      },
+      {
+        "token": "kind of",
+        "category": "listed_filler"
+      },
+      {
+        "token": "sort of",
+        "category": "listed_filler"
+      },
+      {
+        "token": "basically",
+        "category": "listed_filler"
+      },
+      {
+        "token": "to be honest",
+        "category": "listed_filler"
+      },
+      {
+        "token": "at the end of the day",
+        "category": "listed_filler"
+      }
+    ]
+  },
+  {
+    "id": "repetition-triple",
+    "note": "Real transcript from a user recording — the loop is one event.",
+    "transcript": "We will be testing this for a cloud in and out, day and out, day and out, day and out. And we just went and tried all of these sort of things.",
+    "expected": [
+      {
+        "token": "day and out",
+        "category": "repetition"
+      },
+      {
+        "token": "sort of",
+        "category": "listed_filler"
+      }
+    ]
+  },
+  {
+    "id": "repetition-stutter",
+    "note": "Single-word stutter.",
+    "transcript": "The the end came fast. We we were not ready.",
+    "expected": [
+      {
+        "token": "the",
+        "category": "repetition"
+      },
+      {
+        "token": "we",
+        "category": "repetition"
+      }
+    ]
+  },
+  {
+    "id": "repetition-wins-over-listed",
+    "note": "A repeated filler is reported as a loop, not three separate fillers.",
+    "transcript": "And then, um, um, um, it broke.",
+    "expected": [
+      {
+        "token": "um",
+        "category": "repetition"
+      }
+    ]
+  },
+  {
+    "id": "like-as-verb",
+    "note": "Deterministic tier must NOT flag 'like' — that is Tier B's job.",
+    "transcript": "I like the new design. It looks like the old one but faster.",
+    "expected": []
+  },
+  {
+    "id": "kind-not-kind-of",
+    "note": "'kind' alone is not 'kind of'.",
+    "transcript": "She was kind to everyone. What kind is it?",
+    "expected": []
+  },
+  {
+    "id": "known-limitation-you-know-question",
+    "note": "KNOWN FALSE POSITIVE: the list is context-blind. 'you know' as a real question gets flagged. Kept in the set so the number is honest.",
+    "transcript": "Do you know the way to the station?",
+    "expected": []
+  },
+  {
+    "id": "mock-attempt-1",
+    "note": "The app's built-in demo transcript.",
+    "transcript": "So, um, last month I was supposed to run the demo for our biggest client, and, uh, the night before I realized the staging environment was, like, completely broken. I mean, nothing loaded, just a white screen. So I basically started panicking, you know, because the account team had already flown in. Um, I stayed up trying different builds and, uh, kind of rewrote the seed data at two in the morning. And, um, yeah, the morning was pretty stressful, we were all sort of scrambling around trying to figure out what to show them instead.",
+    "expected": [
+      {
+        "token": "um",
+        "category": "listed_filler"
+      },
+      {
+        "token": "uh",
+        "category": "listed_filler"
+      },
+      {
+        "token": "i mean",
+        "category": "listed_filler"
+      },
+      {
+        "token": "basically",
+        "category": "listed_filler"
+      },
+      {
+        "token": "you know",
+        "category": "listed_filler"
+      },
+      {
+        "token": "um",
+        "category": "listed_filler"
+      },
+      {
+        "token": "uh",
+        "category": "listed_filler"
+      },
+      {
+        "token": "kind of",
+        "category": "listed_filler"
+      },
+      {
+        "token": "um",
+        "category": "listed_filler"
+      },
+      {
+        "token": "sort of",
+        "category": "listed_filler"
+      }
+    ]
+  },
+  {
+    "id": "boundary-umbrella",
+    "note": "Word boundaries: 'um' must not match inside 'umbrella' or 'album'.",
+    "transcript": "I forgot my umbrella and the album got wet.",
+    "expected": []
+  },
+  {
+    "id": "boundary-ahead",
+    "note": "'ah' must not match inside 'ahead'.",
+    "transcript": "Go ahead, the road is clear.",
+    "expected": []
+  },
+  {
+    "id": "emphatic-repeat",
+    "note": "KNOWN LIMITATION: deliberate emphasis ('no, no, no') reads as a loop to a regex. Counted honestly.",
+    "transcript": "No, no, no. That was never the plan.",
+    "expected": []
+  },
+  {
+    "id": "mixed-real",
+    "note": "Fillers plus a restart.",
+    "transcript": "Basically we, we tried to ship it Friday, you know, and it kind of, kind of worked.",
+    "expected": [
+      {
+        "token": "basically",
+        "category": "listed_filler"
+      },
+      {
+        "token": "we",
+        "category": "repetition"
+      },
+      {
+        "token": "you know",
+        "category": "listed_filler"
+      },
+      {
+        "token": "kind of",
+        "category": "repetition"
+      }
+    ]
+  },
+  {
+    "id": "repetition-four-word-restart",
+    "note": "Found during live testing: a 4-word restart was missed at the old 3-word cap.",
+    "transcript": "I thought that was, I thought that was unsafe. My task was to own the rollout plan.",
+    "expected": [
+      {
+        "token": "i thought that was",
+        "category": "repetition"
+      }
+    ]
+  }
+]

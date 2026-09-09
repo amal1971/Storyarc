@@ -19,6 +19,12 @@ const TIER_A_PATTERN = new RegExp(
   'gi',
 )
 
+// Tier A′: repetition loops. The same 1–4 word run repeated back-to-back at
+// least once ("day and out, day and out, day and out", "the the", "so so so").
+// One event spans the whole loop. Backreferences honour the `i` flag in JS,
+// so "And we, and we" matches. Deterministic and cheap, like Tier A.
+const REPETITION_PATTERN = /\b([a-z']+(?:\s+[a-z']+){0,3})(?:[\s,]+\1\b)+/gi
+
 export function countWords(text) {
   return (text.trim().match(/\S+/g) || []).length
 }
@@ -41,9 +47,35 @@ export function detectTierA(text) {
   return events
 }
 
-// Merge Tier A + Tier B events. Tier B events arrive as { token, category, context }.
+export function detectRepetitions(text) {
+  const events = []
+  let m
+  REPETITION_PATTERN.lastIndex = 0
+  while ((m = REPETITION_PATTERN.exec(text)) !== null) {
+    events.push({
+      token: m[1].toLowerCase(),
+      start: m.index,
+      end: m.index + m[0].length,
+      tier: 'A',
+      category: 'repetition',
+    })
+  }
+  return events
+}
+
+// Everything deterministic in one pass. Repetition spans win on overlap: if
+// someone says "um, um, um" the loop is the more useful thing to show than
+// three separate "um"s.
+export function detectDeterministic(text) {
+  const reps = detectRepetitions(text)
+  const inside = (ev) => reps.some((r) => ev.start >= r.start && ev.end <= r.end)
+  const listed = detectTierA(text).filter((ev) => !inside(ev))
+  return [...reps, ...listed].sort((a, b) => a.start - b.start)
+}
+
+// Merge deterministic + Tier B events. Tier B events arrive as { token, category, context }.
 // We locate each Tier B token in the transcript (all word-boundary occurrences)
-// and drop anything overlapping an existing Tier A span.
+// and drop anything overlapping an existing deterministic span — Tier A always wins.
 export function mergeEvents(text, tierAEvents, tierBEvents) {
   const merged = [...tierAEvents]
   const overlaps = (s, e) => merged.some((ev) => s < ev.end && e > ev.start)
@@ -74,13 +106,34 @@ export function fillerRate(eventCount, wordCount) {
   return Math.round((eventCount / wordCount) * 100 * 10) / 10
 }
 
-// Split transcript into segments for highlighting: [{ text, filler: bool, tier }]
+// Words per minute from a word count and a duration in seconds.
+export function wordsPerMinute(wordCount, seconds) {
+  if (!seconds || seconds <= 0) return null
+  return Math.round(wordCount / (seconds / 60))
+}
+
+// "Your tell": the one filler you lean on. Only reported when it's genuinely
+// dominant — ≥3 uses AND ≥30% of all events — so the app never invents a
+// pattern out of a spread of one-offs.
+export function topFiller(events) {
+  if (!events?.length) return null
+  const counts = new Map()
+  for (const ev of events) counts.set(ev.token, (counts.get(ev.token) || 0) + 1)
+  let best = null
+  for (const [token, count] of counts) if (!best || count > best.count) best = { token, count }
+  const share = best.count / events.length
+  if (best.count < 3 || share < 0.3) return null
+  return { ...best, total: events.length, share: Math.round(share * 100) }
+}
+
+// Split transcript into segments for highlighting: [{ text, filler, tier, category }]
 export function segmentTranscript(text, events) {
   const segs = []
   let cursor = 0
   for (const ev of events) {
+    if (ev.start < cursor) continue // defensive: skip anything overlapping a prior span
     if (ev.start > cursor) segs.push({ text: text.slice(cursor, ev.start), filler: false })
-    segs.push({ text: text.slice(ev.start, ev.end), filler: true, tier: ev.tier })
+    segs.push({ text: text.slice(ev.start, ev.end), filler: true, tier: ev.tier, category: ev.category })
     cursor = ev.end
   }
   if (cursor < text.length) segs.push({ text: text.slice(cursor), filler: false })

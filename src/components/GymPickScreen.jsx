@@ -27,7 +27,7 @@ export function GymPickScreen({ onStart, onBack, initialFramework, initialSituat
           </button>
         ))}
       </div>
-      <p className="fw-soon-note">🌱 STAR, Hero’s Journey, and the Pixar pitch are coming next.</p>
+      <p className="fw-soon-note">🌱 Hero’s Journey and the Pixar pitch are coming next.</p>
 
       <div className="card fw-detail">
         <div className="fw-detail-head">

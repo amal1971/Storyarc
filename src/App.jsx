@@ -8,15 +8,22 @@ import { DeltaScreen } from './components/DeltaScreen.jsx'
 import { GymPickScreen } from './components/GymPickScreen.jsx'
 import { GymFeedbackScreen } from './components/GymFeedbackScreen.jsx'
 import { GymDeltaScreen } from './components/GymDeltaScreen.jsx'
+import { HistoryScreen } from './components/HistoryScreen.jsx'
+import { AboutScreen } from './components/AboutScreen.jsx'
 import { transcribe } from './lib/stt.js'
 import { analyzeFillers, analyzeStructure, analyzeFramework, compareAttempts } from './lib/analyze.js'
-import { detectTierA, mergeEvents, fillerRate, countWords } from './lib/fillers.js'
+import { detectDeterministic, mergeEvents, fillerRate, countWords, wordsPerMinute } from './lib/fillers.js'
 import { randomSituation } from './lib/frameworks.js'
-import { newPairId, buildAttemptRecord, saveRecord, loadRecords, exportSession } from './lib/session.js'
+import {
+  newPairId, buildAttemptRecord, saveRecord, loadRecords, exportSession, annotatePair, clearSession,
+} from './lib/session.js'
+
+export const REPO_URL = 'https://github.com/amal1971/Storyarc'
 
 // Lab loop:  start → lab-pick → record1 → processing → feedback → record2 → processing → delta
 // Gym loop:  start → gym-pick → gym-record → processing → gym-feedback
 //                 → gym-record2 → processing → gym-delta
+// Side screens: history, about (reachable from the footer on any screen).
 // Both loops end in a comparison call that reads BOTH attempts together —
 // that call is what lets the app say whether its own advice landed.
 export default function App() {
@@ -32,7 +39,8 @@ export default function App() {
   const [gymComparison, setGymComparison] = useState(null)
   const [procError, setProcError] = useState(null)
   const pairIdRef = useRef(null)
-  const lastBlobRef = useRef(null)
+  const lastInputRef = useRef(null)
+  const seenSituationsRef = useRef(new Set())
 
   const mode = screen.startsWith('gym') ? 'gym' : 'lab'
 
@@ -51,13 +59,19 @@ export default function App() {
     pairIdRef.current = null
   }
 
+  const nextSituation = () => {
+    const s = randomSituation(seenSituationsRef.current)
+    seenSituationsRef.current.add(s.id)
+    return s
+  }
+
   // New situation / new framework run: keep the mode, drop the prior round.
-  const resetGymRound = (nextSituation) => {
+  const resetGymRound = (nextSit) => {
     setGymAttempt1(null)
     setGymAttempt2(null)
     setGymComparison(null)
     setProcError(null)
-    if (nextSituation) setSituation(nextSituation)
+    if (nextSit) setSituation(nextSit)
     pairIdRef.current = newPairId()
     setScreen('gym-record')
   }
@@ -71,19 +85,30 @@ export default function App() {
   const startGym = (fw, sit) => {
     setFramework(fw)
     setSituation(sit)
+    seenSituationsRef.current.add(sit.id)
     pairIdRef.current = newPairId()
     setScreen('gym-record')
   }
 
-  async function runLabAnalysis(blob, attemptNumber) {
-    const t = await transcribe(blob, { attemptNumber })
+  // One shape for all three ways in: { blob, seconds, inputMode } or { text, inputMode }.
+  // The typed path skips speech-to-text entirely — downstream only ever sees text.
+  async function getTranscript(input, attemptNumber) {
+    if (input.text) return { text: input.text, provider: 'typed' }
+    return transcribe(input.blob, { attemptNumber })
+  }
+
+  async function runLabAnalysis(input, attemptNumber) {
+    const t = await getTranscript(input, attemptNumber)
     const wordCount = countWords(t.text)
     if (wordCount < 10) return { gibberish: true }
     const [tierB, structure] = await Promise.all([
       analyzeFillers(t.text),
       analyzeStructure(t.text),
     ])
-    const events = mergeEvents(t.text, detectTierA(t.text), tierB.events)
+    const events = mergeEvents(t.text, detectDeterministic(t.text), tierB.events)
+    const durationS = input.seconds ?? null
+    const wpm = wordsPerMinute(wordCount, durationS)
+    const inputMode = input.inputMode || 'mic'
     const analysis = {
       transcript: t.text,
       events,
@@ -93,6 +118,9 @@ export default function App() {
       structure,
       sttProvider: t.provider,
       fillerProvider: tierB.provider,
+      durationS,
+      wpm,
+      inputMode,
     }
     saveRecord(buildAttemptRecord({
       pairId: pairIdRef.current,
@@ -105,16 +133,23 @@ export default function App() {
       structure,
       retryStarted: attemptNumber === 2,
       sttProvider: t.provider,
+      inputMode,
+      durationS,
+      wpm,
     }))
     return { analysis }
   }
 
-  async function runGymAnalysis(blob, attemptNumber) {
-    const t = await transcribe(blob, { attemptNumber })
+  async function runGymAnalysis(input, attemptNumber) {
+    const t = await getTranscript(input, attemptNumber)
     const wordCount = countWords(t.text)
     if (wordCount < 10) return { gibberish: true }
     const fwAnalysis = await analyzeFramework(t.text, framework.id)
-    const events = detectTierA(t.text)
+    const events = detectDeterministic(t.text)
+    const durationS = input.seconds ?? null
+    const wpm = wordsPerMinute(wordCount, durationS)
+    const inputMode = input.inputMode || 'mic'
+    const fillerRateValue = fillerRate(events.length, wordCount)
     saveRecord(buildAttemptRecord({
       mode: 'gym',
       frameworkId: framework.id,
@@ -126,9 +161,12 @@ export default function App() {
       transcript: t.text,
       wordCount,
       fillerEvents: events,
-      fillerRateValue: fillerRate(events.length, wordCount),
+      fillerRateValue,
       structure: null,
       sttProvider: t.provider,
+      inputMode,
+      durationS,
+      wpm,
     }))
     return {
       result: {
@@ -136,52 +174,56 @@ export default function App() {
         analysis: fwAnalysis,
         sttProvider: t.provider,
         events,
+        eventCount: events.length,
         wordCount,
-        fillerRateValue: fillerRate(events.length, wordCount),
+        fillerRateValue,
+        durationS,
+        wpm,
+        inputMode,
       },
     }
   }
 
-  async function analyze(blob, attemptNumber, analysisMode = mode) {
+  async function analyze(input, attemptNumber, analysisMode = mode) {
     setProcError(null)
     setScreen('processing')
-    lastBlobRef.current = { blob, attemptNumber, analysisMode }
+    lastInputRef.current = { input, attemptNumber, analysisMode }
     try {
       if (analysisMode === 'gym') {
-        const out = await runGymAnalysis(blob, attemptNumber)
+        const out = await runGymAnalysis(input, attemptNumber)
         if (out.gibberish) return setProcError({ kind: 'gibberish' })
         if (attemptNumber === 1) {
           setGymAttempt1(out.result)
           setScreen('gym-feedback')
         } else {
           setGymAttempt2(out.result)
-          setGymComparison(
-            await compareAttempts({
-              mode: 'gym',
-              transcript1: gymAttempt1.transcript,
-              transcript2: out.result.transcript,
-              frameworkId: framework.id,
-              steps1: gymAttempt1.analysis.steps,
-            }),
-          )
+          const cmp = await compareAttempts({
+            mode: 'gym',
+            transcript1: gymAttempt1.transcript,
+            transcript2: out.result.transcript,
+            frameworkId: framework.id,
+            steps1: gymAttempt1.analysis.steps,
+          })
+          setGymComparison(cmp)
+          annotatePair(pairIdRef.current, { fix_addressed: cmp.fix_addressed, comparison_headline: cmp.headline })
           setScreen('gym-delta')
         }
       } else {
-        const out = await runLabAnalysis(blob, attemptNumber)
+        const out = await runLabAnalysis(input, attemptNumber)
         if (out.gibberish) return setProcError({ kind: 'gibberish' })
         if (attemptNumber === 1) {
           setAttempt1(out.analysis)
           setScreen('feedback')
         } else {
           setAttempt2(out.analysis)
-          setComparison(
-            await compareAttempts({
-              mode: 'lab',
-              transcript1: attempt1.transcript,
-              transcript2: out.analysis.transcript,
-              suggestedFix: attempt1.structure?.suggested_fix,
-            }),
-          )
+          const cmp = await compareAttempts({
+            mode: 'lab',
+            transcript1: attempt1.transcript,
+            transcript2: out.analysis.transcript,
+            suggestedFix: attempt1.structure?.suggested_fix,
+          })
+          setComparison(cmp)
+          annotatePair(pairIdRef.current, { fix_addressed: cmp.fix_addressed, comparison_headline: cmp.headline })
           setScreen('delta')
         }
       }
@@ -191,8 +233,9 @@ export default function App() {
     }
   }
 
-  const last = lastBlobRef.current
+  const last = lastInputRef.current
   const isGymContext = mode === 'gym' || (screen === 'processing' && last?.analysisMode === 'gym')
+  const sideScreen = screen === 'history' || screen === 'about'
   const crumbs =
     isGymContext
       ? [
@@ -206,6 +249,7 @@ export default function App() {
           { label: 'Tell it again', active: screen === 'record2' },
           { label: 'See the delta', active: screen === 'delta' },
         ]
+  const showCrumbs = screen !== 'start' && !sideScreen
 
   return (
     <div className="app">
@@ -213,14 +257,14 @@ export default function App() {
         <button className="logo" onClick={reset} aria-label="StoryArc home">
           Story<span className="grad-text">Arc</span> <span className="logo-mic">🎙️</span>
         </button>
-        {screen !== 'start' && (
+        {showCrumbs && (
           <nav className="crumbs" aria-label="Progress">
             {crumbs.map((c) => (
               <span key={c.label} className={`crumb ${c.active ? 'active' : ''}`}>{c.label}</span>
             ))}
           </nav>
         )}
-        {screen !== 'start' && (() => {
+        {showCrumbs && (() => {
           const activeIndex = crumbs.findIndex((c) => c.active)
           const current = crumbs[activeIndex] || crumbs[0]
           return (
@@ -242,7 +286,7 @@ export default function App() {
           <RecordScreen
             prompt={prompt}
             attemptNumber={1}
-            onRecorded={(blob) => analyze(blob, 1, 'lab')}
+            onSubmit={(input) => analyze(input, 1, 'lab')}
             onCancel={() => setScreen('lab-pick')}
           />
         )}
@@ -251,7 +295,7 @@ export default function App() {
           <ProcessingScreen
             variant={last?.analysisMode || 'lab'}
             error={procError}
-            onRetry={() => analyze(last.blob, last.attemptNumber, last.analysisMode)}
+            onRetry={() => analyze(last.input, last.attemptNumber, last.analysisMode)}
             onReRecord={() =>
               setScreen(
                 last?.analysisMode === 'gym'
@@ -279,7 +323,7 @@ export default function App() {
           <RecordScreen
             prompt={prompt}
             attemptNumber={2}
-            onRecorded={(blob) => analyze(blob, 2, 'lab')}
+            onSubmit={(input) => analyze(input, 2, 'lab')}
             onCancel={() => setScreen('feedback')}
           />
         )}
@@ -308,7 +352,7 @@ export default function App() {
             prompt={situation}
             attemptNumber={1}
             scaffold={framework}
-            onRecorded={(blob) => analyze(blob, 1, 'gym')}
+            onSubmit={(input) => analyze(input, 1, 'gym')}
             onCancel={() => setScreen('gym-pick')}
           />
         )}
@@ -319,7 +363,7 @@ export default function App() {
             situation={situation}
             result={gymAttempt1}
             onAgain={() => setScreen('gym-record2')}
-            onNewSituation={() => resetGymRound(randomSituation(situation?.id))}
+            onNewSituation={() => resetGymRound(nextSituation())}
             onHome={reset}
           />
         )}
@@ -329,7 +373,7 @@ export default function App() {
             prompt={situation}
             attemptNumber={2}
             scaffold={framework}
-            onRecorded={(blob) => analyze(blob, 2, 'gym')}
+            onSubmit={(input) => analyze(input, 2, 'gym')}
             onCancel={() => setScreen('gym-feedback')}
           />
         )}
@@ -341,17 +385,30 @@ export default function App() {
             attempt1={gymAttempt1}
             attempt2={gymAttempt2}
             comparison={gymComparison}
-            onNewSituation={() => resetGymRound(randomSituation(situation?.id))}
+            onNewSituation={() => resetGymRound(nextSituation())}
             onHome={reset}
           />
         )}
+
+        {screen === 'history' && (
+          <HistoryScreen
+            onBack={reset}
+            onExport={() => exportSession(loadRecords())}
+            onClear={() => { clearSession(); setScreen('start') }}
+          />
+        )}
+
+        {screen === 'about' && <AboutScreen onBack={reset} repoUrl={REPO_URL} />}
       </main>
 
       <footer className="footer">
-        <span>Local-first · no accounts · your recordings never persist</span>
-        <button className="link-btn footer-export" onClick={() => exportSession(loadRecords())}>
-          ⬇️ Export session data
-        </button>
+        <span>Local-first · no accounts · audio never leaves your device · transcripts stay in this browser</span>
+        <span className="footer-links">
+          <button className="link-btn" onClick={() => setScreen('about')}>How it’s built</button>
+          <button className="link-btn" onClick={() => setScreen('history')}>History</button>
+          <a className="link-btn" href={REPO_URL} target="_blank" rel="noopener noreferrer">View source ↗</a>
+          <button className="link-btn footer-export" onClick={() => exportSession(loadRecords())}>⬇️ Export</button>
+        </span>
       </footer>
     </div>
   )

@@ -60,6 +60,39 @@ export const FRAMEWORKS = [
     retellGuidance:
       'Retell with a crisp one-to-two line situation, a concrete complication, and a resolution that explicitly closes the loop on the complication.',
   },
+  {
+    id: 'star',
+    name: 'STAR',
+    fullName: 'Situation · Task · Action · Result',
+    emoji: '⭐',
+    tagline: 'The interview classic — context, your job, what you did, what came of it.',
+    steps: [
+      {
+        key: 'situation',
+        label: 'Situation',
+        hint: 'Set the scene in one or two lines — where, when, who was involved.',
+      },
+      {
+        key: 'task',
+        label: 'Task',
+        hint: 'What was YOUR specific responsibility or goal in it? Not the team’s — yours.',
+      },
+      {
+        key: 'action',
+        label: 'Action',
+        hint: 'What you actually did — concrete verbs, your decisions, in order.',
+      },
+      {
+        key: 'result',
+        label: 'Result',
+        hint: 'What happened — ideally with a number — and what changed because of it.',
+      },
+    ],
+    analysisGuidance:
+      'Judge whether the listener can place the scene (Situation), whether the speaker names their OWN responsibility rather than the group\'s (Task — "we had to" without "I was responsible for" is partial), whether the actions are concrete first-person verbs rather than generalities (Action), and whether a stated outcome closes the loop, ideally with a measurable (Result). A result that is only "it went well" is partial.',
+    retellGuidance:
+      'Retell with a one-to-two line situation, a clearly owned first-person task, two or three concrete actions in sequence, and a result that states what happened and what changed — keep any number the speaker gave.',
+  },
 ]
 
 export function getFramework(id) {
@@ -94,10 +127,52 @@ export const SITUATIONS = [
     emoji: '🐙',
     text: 'A new teammate asks how the project got its weird nickname.',
   },
+  {
+    id: 'disagreed-manager',
+    emoji: '🤝',
+    text: 'Interview: “Tell me about a time you disagreed with your manager.”',
+  },
+  {
+    id: 'tight-deadline',
+    emoji: '⏰',
+    text: 'Interview: “Walk me through a time you had to deliver under a brutal deadline.”',
+  },
+  {
+    id: 'proud-of',
+    emoji: '🏅',
+    text: 'Interview: “What’s a piece of work you’re genuinely proud of, and why?”',
+  },
+  {
+    id: 'mistake-owned',
+    emoji: '🧯',
+    text: 'Interview: “Tell me about a mistake you made and what you did next.”',
+  },
+  {
+    id: 'convinced-someone',
+    emoji: '🎯',
+    text: 'A colleague asks: “How did you get them to say yes to that?”',
+  },
+  {
+    id: 'first-week',
+    emoji: '🌱',
+    text: 'At a reunion: “What was your first week at that job actually like?”',
+  },
+  {
+    id: 'thing-broke-live',
+    emoji: '🔥',
+    text: 'Your team wants the story: “What happened when it broke in front of everyone?”',
+  },
 ]
 
-export function randomSituation(excludeId) {
-  const pool = SITUATIONS.filter((s) => s.id !== excludeId)
+// `exclude` may be a single id or any iterable of ids (e.g. everything seen this
+// session). If that empties the pool, fall back to "anything but the last one".
+export function randomSituation(exclude) {
+  const excluded = new Set(typeof exclude === 'string' ? [exclude] : exclude || [])
+  let pool = SITUATIONS.filter((s) => !excluded.has(s.id))
+  if (pool.length === 0) {
+    const last = [...excluded].pop()
+    pool = SITUATIONS.filter((s) => s.id !== last)
+  }
   return pool[Math.floor(Math.random() * pool.length)]
 }
 

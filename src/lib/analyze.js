@@ -96,8 +96,8 @@ const BEAT_CHECKS = {
 
 const BEAT_KIND = {
   and: 'setup', situation: 'setup',
-  but: 'turn', complication: 'turn',
-  therefore: 'landing', resolution: 'landing', outcome: 'landing',
+  but: 'turn', complication: 'turn', task: 'setup', action: 'turn',
+  therefore: 'landing', resolution: 'landing', outcome: 'landing', result: 'landing',
 }
 
 const MOCK_NOTES = {
@@ -150,7 +150,8 @@ function mockFramework(transcript, framework) {
         ? `Two beats land cleanly — one more turn of the screw and the ${framework.name} spine clicks into place.`
         : `The raw material is all here — it just isn’t sorted into beats yet, which is exactly what this drill is for.`
 
-  const isMockStory = /biggest client/i.test(transcript)
+  // Canned retelling is written for a 3-beat shape; 4-beat frameworks (STAR) split instead.
+  const isMockStory = /biggest client/i.test(transcript) && framework.steps.length === 3
   const parts = isMockStory ? null : splitIntoBeats(transcript, framework.steps.length)
   const retelling = framework.steps.map((s, i) => ({
     step: s.key,
