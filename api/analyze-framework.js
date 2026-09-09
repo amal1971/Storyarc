@@ -1,7 +1,11 @@
 // POST /api/analyze-framework — Gemini call for the Framework Gym.
 // The prompt is assembled from the framework registry, so new frameworks
 // added in src/lib/frameworks.js work here with zero endpoint changes.
-import { geminiJSON } from './_gemini.js'
+import { geminiJSON, geminiConfigured, GeminiUnavailableError, GEMINI_MODEL } from './_gemini.js'
+
+// Bump when the prompt below changes materially. Stored with every result
+// so a saved output can be traced back to the prompt that produced it.
+const FRAMEWORK_PROMPT_VERSION = 'framework-2026-09-04'
 import { getFramework } from '../src/lib/frameworks.js'
 
 const PROMPT = (transcript, fw) => `You are a storytelling coach. The speaker practiced the ${fw.fullName} (${fw.name}) framework on a spoken story.
@@ -40,6 +44,11 @@ export default async function handler(req, res) {
   const { transcript, frameworkId } = req.body || {}
   const fw = getFramework(frameworkId)
   if (!transcript || !fw) return res.status(400).json({ error: 'transcript and valid frameworkId required' })
+  if (!geminiConfigured()) {
+    // Zero-key demo mode: the client's deterministic mock is the intended path.
+    return res.status(503).json({ error: 'not_configured', retryable: false, configured: false })
+  }
+
   try {
     const data = await geminiJSON(PROMPT(transcript, fw), { temperature: 0.6 })
     // Normalize against the registry: every beat present, in order, valid verdicts.
@@ -58,9 +67,16 @@ export default async function handler(req, res) {
       feedback_line: data.feedback_line || '',
       retelling,
       provider: 'gemini',
+      prompt_version: FRAMEWORK_PROMPT_VERSION,
+      model: GEMINI_MODEL,
     })
   } catch (err) {
     console.error('[analyze-framework]', err)
-    return res.status(502).json({ error: 'framework analysis failed' })
+    // A configured key that is merely overloaded must not be dressed up as
+    // a result — the client shows a retry instead of fabricating output.
+    if (err instanceof GeminiUnavailableError) {
+      return res.status(503).json({ error: 'model_unavailable', retryable: true, configured: true })
+    }
+    return res.status(502).json({ error: 'analysis_failed', retryable: false, configured: true })
   }
 }

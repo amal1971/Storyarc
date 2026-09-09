@@ -1,7 +1,11 @@
 // POST /api/analyze-structure — Gemini Call 2: SCR structure rubric.
 // NOTE: replace PROMPT with the paste-ready version from
 // StoryArc_Task1_Rubrics_Prompts_EvalSet.md before Milestone 2 sign-off.
-import { geminiJSON } from './_gemini.js'
+import { geminiJSON, geminiConfigured, GeminiUnavailableError, GEMINI_MODEL } from './_gemini.js'
+
+// Bump when the prompt below changes materially. Stored with every result
+// so a saved output can be traced back to the prompt that produced it.
+const STRUCTURE_PROMPT_VERSION = 'structure-2026-07-24'
 
 const PROMPT = (transcript) => `You are a story-structure analyst using a Situation/Complication/Resolution rubric. Analyze the spoken-story transcript below.
 
@@ -29,6 +33,11 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
   const { transcript } = req.body || {}
   if (!transcript) return res.status(400).json({ error: 'transcript required' })
+  if (!geminiConfigured()) {
+    // Zero-key demo mode: the client's deterministic mock is the intended path.
+    return res.status(503).json({ error: 'not_configured', retryable: false, configured: false })
+  }
+
   try {
     let data = await geminiJSON(PROMPT(transcript), { temperature: 0.4 })
     // Anti-fabrication guardrail: evidence must be a verbatim substring.
@@ -46,9 +55,14 @@ export default async function handler(req, res) {
       data.complication_present,
       data.outcome_present,
     ].filter(Boolean).length
-    return res.status(200).json({ ...data, provider: 'gemini' })
+    return res.status(200).json({ ...data, provider: 'gemini', prompt_version: STRUCTURE_PROMPT_VERSION, model: GEMINI_MODEL })
   } catch (err) {
     console.error('[analyze-structure]', err)
-    return res.status(502).json({ error: 'structure analysis failed' })
+    // A configured key that is merely overloaded must not be dressed up as
+    // a result — the client shows a retry instead of fabricating output.
+    if (err instanceof GeminiUnavailableError) {
+      return res.status(503).json({ error: 'model_unavailable', retryable: true, configured: true })
+    }
+    return res.status(502).json({ error: 'analysis_failed', retryable: false, configured: true })
   }
 }

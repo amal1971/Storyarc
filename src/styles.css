@@ -565,3 +565,60 @@ body {
 .about-stack { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .footer-links { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
 .tell-line--flat { background: var(--card); border-color: var(--muted); }
+
+/* ————— Story Gym pick: explicit hierarchy —————
+   The old screen gave a card + border + hard shadow to everything, so the
+   prompt, the framework choices and the shuffle all read as equally clickable.
+   Three distinct visual roles now:
+     content to READ      -> .situation-panel  (tinted, no shadow, big type)
+     choices to PICK      -> .fw-card          (shadow + check mark when chosen)
+     reference to GLANCE  -> .fw-detail--quiet (flat, muted, no border)
+   Only .btn-primary keeps the heavy shadow, so exactly one thing looks like
+   the next action. */
+.gym-pick { width: 100%; }
+.gym-step { width: 100%; max-width: 760px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.gym-step-label {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  align-self: flex-start; margin: 0; font-family: var(--font-body);
+  font-size: 0.82rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--muted);
+}
+.gym-step-num {
+  display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--ink); color: #fff; font-size: 0.75rem; font-weight: 800;
+  letter-spacing: 0;
+}
+.gym-step-hint { text-transform: none; letter-spacing: 0; font-weight: 500; opacity: 0.8; }
+
+/* The prompt. Deliberately NOT a card: no hard shadow, so it cannot be
+   mistaken for something to click. */
+.situation-panel {
+  width: 100%; background: linear-gradient(150deg, #fff3c9, #ffe4f4 65%, #e9e2ff);
+  border: var(--border); border-radius: var(--radius); padding: 26px 28px;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 12px;
+}
+.situation-quote {
+  margin: 0; font-family: var(--font-display); font-weight: 650;
+  font-size: clamp(1.25rem, 3.2vw, 1.7rem); line-height: 1.35;
+  display: flex; gap: 12px; align-items: flex-start;
+}
+.situation-quote .situation-emoji { font-size: 1.6rem; line-height: 1.2; flex: none; }
+.situation-shuffle { padding: 0; font-size: 0.9rem; }
+
+/* Selected framework gets an unmistakable tick, not just a tint. */
+.fw-card { position: relative; }
+.fw-check {
+  position: absolute; top: 10px; right: 12px; width: 22px; height: 22px;
+  display: grid; place-items: center; border-radius: 50%;
+  font-size: 0.8rem; font-weight: 900; color: #fff;
+  background: var(--fw-check-bg, transparent);
+}
+.fw-selected .fw-check { --fw-check-bg: var(--violet); border: 2px solid var(--ink); }
+
+/* Reference strip: flat and quiet so it reads as a reminder, not an action. */
+.fw-detail--quiet {
+  width: 100%; max-width: 760px; background: none; border: none; box-shadow: none;
+  border-top: 2px dashed var(--muted); border-radius: 0; padding: 18px 4px 0;
+}
+.fw-detail-lead { margin: 0 0 14px; color: var(--muted); font-size: 0.95rem; }
+.fw-detail-lead strong { color: var(--ink); }

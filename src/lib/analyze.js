@@ -16,8 +16,35 @@ async function postJSON(url, body) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error(`${url} failed: ${res.status}`)
+  if (!res.ok) {
+    // The server distinguishes "no key, use the demo mock" from "key present
+    // but the model is down". Carry that distinction to the caller.
+    let info = {}
+    try { info = await res.json() } catch { /* non-JSON error body */ }
+    const err = new Error(`${url} failed: ${res.status} ${info.error || ''}`.trim())
+    err.status = res.status
+    err.configured = info.configured === true
+    err.retryable = info.retryable === true
+    throw err
+  }
   return res.json()
+}
+
+// The single rule for every analyzer's failure path.
+//
+// Zero-key demo mode is a designed feature: mock output is the intended
+// experience and is badged as such. But once a key IS configured, a mock is a
+// lie — and the gym mock in particular renders the speaker's own raw transcript
+// sliced into beats, which reads as a broken product rather than a degraded
+// one. So when the service is merely unavailable, fail loudly and let the UI
+// offer a retry.
+function degradeOrThrow(err, tag, mockValue) {
+  if (err.configured) {
+    console.warn(`[${tag}] model unavailable, surfacing to the user:`, err.message)
+    throw err
+  }
+  console.warn(`[${tag}] no key configured — using the demo mock:`, err.message)
+  return mockValue
 }
 
 // ---------- Call 1: Tier-B filler adjudication ----------
@@ -44,8 +71,7 @@ export async function analyzeFillers(transcript) {
     if (!Array.isArray(data.events)) throw new Error('bad payload')
     return data
   } catch (err) {
-    console.warn('[analyze-fillers] falling back to mock:', err.message)
-    return mockTierB(transcript)
+    return degradeOrThrow(err, 'analyze-fillers', mockTierB(transcript))
   }
 }
 
@@ -167,9 +193,8 @@ export async function analyzeFramework(transcript, frameworkId) {
     if (!Array.isArray(data.steps) || !Array.isArray(data.retelling)) throw new Error('bad payload')
     return data
   } catch (err) {
-    console.warn('[analyze-framework] falling back to mock:', err.message)
     const { getFramework } = await import('./frameworks.js')
-    return mockFramework(transcript, getFramework(frameworkId))
+    return degradeOrThrow(err, 'analyze-framework', mockFramework(transcript, getFramework(frameworkId)))
   }
 }
 
@@ -197,8 +222,7 @@ export async function compareAttempts(payload) {
     if (!data || typeof data.what_changed !== 'string') throw new Error('bad payload')
     return data
   } catch (err) {
-    console.warn('[compare-attempts] falling back to mock:', err.message)
-    return mockComparison()
+    return degradeOrThrow(err, 'compare-attempts', mockComparison())
   }
 }
 
@@ -219,8 +243,7 @@ export async function analyzeStructure(transcript) {
   try {
     data = await postJSON('/api/analyze-structure', { transcript })
   } catch (err) {
-    console.warn('[analyze-structure] falling back to mock:', err.message)
-    return mockStructure(transcript)
+    return degradeOrThrow(err, 'analyze-structure', mockStructure(transcript))
   }
   // Guardrail: reject non-substring evidence (one retry happens server-side;
   // here we just degrade gracefully by dropping the quote).

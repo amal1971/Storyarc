@@ -3,7 +3,11 @@
 // sees BOTH tellings at once, together with the advice the speaker was given
 // after the first. Without it the app can compare two numbers but can never say
 // whether its own coaching actually landed.
-import { geminiJSON } from './_gemini.js'
+import { geminiJSON, geminiConfigured, GeminiUnavailableError, GEMINI_MODEL } from './_gemini.js'
+
+// Bump when the prompt below changes materially. Stored with every result
+// so a saved output can be traced back to the prompt that produced it.
+const COMPARE_PROMPT_VERSION = 'compare-2026-07-24'
 import { getFramework } from '../src/lib/frameworks.js'
 
 const SHARED_RULES = `Rules:
@@ -72,6 +76,11 @@ export default async function handler(req, res) {
     prompt = LAB_PROMPT({ transcript1, transcript2, suggestedFix })
   }
 
+  if (!geminiConfigured()) {
+    // Zero-key demo mode: the client's deterministic mock is the intended path.
+    return res.status(503).json({ error: 'not_configured', retryable: false, configured: false })
+  }
+
   try {
     const data = await geminiJSON(prompt, { temperature: 0.5 })
     const verdict = ['yes', 'partly', 'no'].includes(data.fix_addressed) ? data.fix_addressed : 'partly'
@@ -83,9 +92,16 @@ export default async function handler(req, res) {
       keep_this: data.keep_this || '',
       next_edge: data.next_edge || '',
       provider: 'gemini',
+      prompt_version: COMPARE_PROMPT_VERSION,
+      model: GEMINI_MODEL,
     })
   } catch (err) {
     console.error('[compare-attempts]', err)
-    return res.status(502).json({ error: 'comparison failed' })
+    // A configured key that is merely overloaded must not be dressed up as
+    // a result — the client shows a retry instead of fabricating output.
+    if (err instanceof GeminiUnavailableError) {
+      return res.status(503).json({ error: 'model_unavailable', retryable: true, configured: true })
+    }
+    return res.status(502).json({ error: 'analysis_failed', retryable: false, configured: true })
   }
 }

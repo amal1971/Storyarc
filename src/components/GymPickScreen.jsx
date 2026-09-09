@@ -1,42 +1,78 @@
 import { useState } from 'react'
 import { FRAMEWORKS, randomSituation } from '../lib/frameworks.js'
 
+// Ordered by what the speaker needs to know, not by what the app knows:
+//   1. What am I being asked to talk about?   <- the prompt, loudest thing here
+//   2. What shape should I use?               <- the framework choice
+//   3. Go.
+// Previously the situation sat fifth, below a large framework card, styled the
+// same as everything else — so the one thing you actually have to answer was
+// the hardest thing to find.
 export function GymPickScreen({ onStart, onBack, initialFramework, initialSituation }) {
   const [framework, setFramework] = useState(initialFramework || FRAMEWORKS[0])
   const [situation, setSituation] = useState(initialSituation || randomSituation())
 
   return (
-    <div className="screen">
-      <h2 className="screen-title">Framework Gym 🏋️</h2>
+    <div className="screen gym-pick">
+      <h2 className="screen-title">Story Gym 🏋️</h2>
       <p className="screen-sub">
-        Pick a framework, get a situation — answer it out loud <em>using the framework</em>.
+        Answer a real-world prompt out loud, using a storytelling shape. Then hear your own story retold in it.
       </p>
 
-      <div className="fw-grid">
-        {FRAMEWORKS.map((f) => (
+      {/* STEP 1 — the prompt. Content, not a control: no shadow, no button
+          affordance, largest type on the screen. */}
+      <section className="gym-step" aria-labelledby="step-situation">
+        <h3 className="gym-step-label" id="step-situation">
+          <span className="gym-step-num">1</span> Your prompt
+          <span className="gym-step-hint">this is what you’ll be talking about</span>
+        </h3>
+        <div className="situation-panel">
+          <p className="situation-quote">
+            <span className="situation-emoji" aria-hidden="true">{situation.emoji}</span>
+            <span>{situation.text}</span>
+          </p>
           <button
-            key={f.id}
-            className={`fw-card ${framework.id === f.id ? 'fw-selected' : ''}`}
-            onClick={() => setFramework(f)}
-            aria-pressed={framework.id === f.id}
+            className="link-btn situation-shuffle"
+            onClick={() => setSituation(randomSituation(situation.id))}
           >
-            <span className="fw-emoji">{f.emoji}</span>
-            <span className="fw-name">{f.name}</span>
-            <span className="fw-full">{f.fullName}</span>
-            <span className="fw-tagline">{f.tagline}</span>
+            🎲 Give me a different prompt
           </button>
-        ))}
-      </div>
-      <p className="fw-soon-note">🌱 Hero’s Journey and the Pixar pitch are coming next.</p>
-
-      <div className="card fw-detail">
-        <div className="fw-detail-head">
-          <span className="fw-detail-emoji">{framework.emoji}</span>
-          <div>
-            <h3 className="fw-detail-title">{framework.fullName}</h3>
-            <p className="fw-detail-tagline">{framework.tagline}</p>
-          </div>
         </div>
+      </section>
+
+      {/* STEP 2 — the choice. These are the only things on the screen that
+          should read as selectable. */}
+      <section className="gym-step" aria-labelledby="step-framework">
+        <h3 className="gym-step-label" id="step-framework">
+          <span className="gym-step-num">2</span> Pick a shape to tell it in
+          <span className="gym-step-hint">tap one</span>
+        </h3>
+        <div className="fw-grid" role="radiogroup" aria-label="Storytelling framework">
+          {FRAMEWORKS.map((f) => (
+            <button
+              key={f.id}
+              className={`fw-card ${framework.id === f.id ? 'fw-selected' : ''}`}
+              onClick={() => setFramework(f)}
+              role="radio"
+              aria-checked={framework.id === f.id}
+            >
+              <span className="fw-check" aria-hidden="true">{framework.id === f.id ? '✓' : ''}</span>
+              <span className="fw-emoji">{f.emoji}</span>
+              <span className="fw-name">{f.name}</span>
+              <span className="fw-full">{f.fullName}</span>
+              <span className="fw-tagline">{f.tagline}</span>
+            </button>
+          ))}
+        </div>
+        <p className="fw-soon-note">🌱 Hero’s Journey and the Pixar pitch are coming next.</p>
+      </section>
+
+      {/* Reference material for the chosen shape. Deliberately quiet: it is
+          there to glance at, not to click. */}
+      <div className="fw-detail fw-detail--quiet">
+        <p className="fw-detail-lead">
+          Telling it as <strong>{framework.fullName}</strong> means hitting these in order:
+        </p>
         <div className="fw-beat-flow">
           {framework.steps.map((s, i) => (
             <div className="fw-beat" key={s.key}>
@@ -51,21 +87,6 @@ export function GymPickScreen({ onStart, onBack, initialFramework, initialSituat
             </div>
           ))}
         </div>
-      </div>
-
-      <div className="card situation-card">
-        <div className="situation-head">
-          <span className="section-tag tag-coral">🎯 Your situation — say it out loud</span>
-          <button
-            className="btn btn-ghost btn-small"
-            onClick={() => setSituation(randomSituation(situation.id))}
-          >
-            🎲 Shuffle
-          </button>
-        </div>
-        <p className="situation-text">
-          <span className="situation-emoji">{situation.emoji}</span> {situation.text}
-        </p>
       </div>
 
       <div className="cta-row">

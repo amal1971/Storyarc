@@ -11,12 +11,18 @@ export function buildAttemptRecord({
   fillerEvents, fillerRateValue, structure, retryStarted, sttProvider,
   mode = 'lab', frameworkId = null, situationId = null, frameworkSteps = null,
   inputMode = 'mic', durationS = null, wpm = null,
+  retelling = null, frameworkFeedbackLine = null, provenance = null,
 }) {
   return {
     mode,
     framework_id: frameworkId,
     situation_id: situationId,
     framework_steps: frameworkSteps,
+    // The retelling is the app's most valuable generated artifact and was
+    // previously discarded the moment the screen unmounted. Persisted now so
+    // exports double as a review corpus for improving the prompts.
+    retelling,
+    framework_feedback_line: frameworkFeedbackLine,
     pair_id: pairId,
     tester_id: testerId || null,
     attempt_number: attemptNumber,
@@ -45,6 +51,9 @@ export function buildAttemptRecord({
     feedback_line: structure?.feedback_line ?? null,
     retry_started: !!retryStarted,
     stt_provider: sttProvider,
+    // Which model and which prompt version produced the generated fields, so a
+    // bad output can be traced to its cause rather than guessed at.
+    provenance,
   }
 }
 

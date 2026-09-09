@@ -2,7 +2,11 @@
 // Generalized classification via Deletion Test + Function Check (not a word list).
 // NOTE: replace PROMPT with the paste-ready version from
 // StoryArc_Filler_Prompt_v2_Generalized.md before Milestone 2 sign-off.
-import { geminiJSON } from './_gemini.js'
+import { geminiJSON, geminiConfigured, GeminiUnavailableError, GEMINI_MODEL } from './_gemini.js'
+
+// Bump when the prompt below changes materially. Stored with every result
+// so a saved output can be traced back to the prompt that produced it.
+const FILLERS_PROMPT_VERSION = 'fillers-2026-09-04'
 
 const PROMPT = (transcript) => `You are a speech-clarity analyst. Find FILLER EVENTS in the transcript below.
 
@@ -27,15 +31,25 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
   const { transcript } = req.body || {}
   if (!transcript) return res.status(400).json({ error: 'transcript required' })
+  if (!geminiConfigured()) {
+    // Zero-key demo mode: the client's deterministic mock is the intended path.
+    return res.status(503).json({ error: 'not_configured', retryable: false, configured: false })
+  }
+
   try {
     const data = await geminiJSON(PROMPT(transcript))
     // Guardrail: context must be a verbatim substring; drop events that fail.
     const events = (data.events || []).filter(
       (e) => e && e.token && (!e.context || transcript.includes(e.context)),
     )
-    return res.status(200).json({ events, provider: 'gemini' })
+    return res.status(200).json({ events, provider: 'gemini', prompt_version: FILLERS_PROMPT_VERSION, model: GEMINI_MODEL })
   } catch (err) {
     console.error('[analyze-fillers]', err)
-    return res.status(502).json({ error: 'filler analysis failed' })
+    // A configured key that is merely overloaded must not be dressed up as
+    // a result — the client shows a retry instead of fabricating output.
+    if (err instanceof GeminiUnavailableError) {
+      return res.status(503).json({ error: 'model_unavailable', retryable: true, configured: true })
+    }
+    return res.status(502).json({ error: 'analysis_failed', retryable: false, configured: true })
   }
 }

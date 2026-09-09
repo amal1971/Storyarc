@@ -136,6 +136,11 @@ export default function App() {
       inputMode,
       durationS,
       wpm,
+      provenance: {
+        structure: { provider: structure.provider, prompt_version: structure.prompt_version ?? null, model: structure.model ?? null },
+        fillers: { provider: tierB.provider, prompt_version: tierB.prompt_version ?? null, model: tierB.model ?? null },
+        stt: t.provider,
+      },
     }))
     return { analysis }
   }
@@ -155,6 +160,12 @@ export default function App() {
       frameworkId: framework.id,
       situationId: situation.id,
       frameworkSteps: fwAnalysis.steps,
+      retelling: fwAnalysis.retelling ?? null,
+      frameworkFeedbackLine: fwAnalysis.feedback_line ?? null,
+      provenance: {
+        framework: { provider: fwAnalysis.provider, prompt_version: fwAnalysis.prompt_version ?? null, model: fwAnalysis.model ?? null },
+        stt: t.provider,
+      },
       pairId: pairIdRef.current,
       attemptNumber,
       promptId: situation.id,
@@ -205,7 +216,7 @@ export default function App() {
             steps1: gymAttempt1.analysis.steps,
           })
           setGymComparison(cmp)
-          annotatePair(pairIdRef.current, { fix_addressed: cmp.fix_addressed, comparison_headline: cmp.headline })
+          annotatePair(pairIdRef.current, { fix_addressed: cmp.fix_addressed, comparison_headline: cmp.headline, comparison: cmp })
           setScreen('gym-delta')
         }
       } else {
@@ -223,13 +234,15 @@ export default function App() {
             suggestedFix: attempt1.structure?.suggested_fix,
           })
           setComparison(cmp)
-          annotatePair(pairIdRef.current, { fix_addressed: cmp.fix_addressed, comparison_headline: cmp.headline })
+          annotatePair(pairIdRef.current, { fix_addressed: cmp.fix_addressed, comparison_headline: cmp.headline, comparison: cmp })
           setScreen('delta')
         }
       }
     } catch (err) {
       console.error(err)
-      setProcError({ kind: 'llm' })
+      // A model that is up but overloaded gets its own state: it is worth
+      // retrying in ten seconds, unlike a genuine failure.
+      setProcError({ kind: err?.retryable ? 'busy' : 'llm' })
     }
   }
 
