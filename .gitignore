@@ -4,3 +4,7 @@ dist
 .env.local
 .vercel
 .DS_Store
+
+# Working notes — kept local, not part of the public repo
+PROGRESS_TRACKER.md
+docs/
