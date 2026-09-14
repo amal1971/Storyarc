@@ -170,7 +170,7 @@ export function RecordScreen({ prompt, attemptNumber, onSubmit, onCancel, scaffo
           ) : (
             <div className="level-meter" aria-hidden="true">
               {rec.bands.map((v, i) => (
-                <span key={i} className="level-bar" style={{ height: `${Math.max(4, Math.round(v * 56))}px` }} />
+                <span key={i} className="level-bar" style={{ transform: `scaleY(${Math.max(4 / 56, v).toFixed(3)})` }} />
               ))}
             </div>
           )}

@@ -11,6 +11,8 @@ const MOCK_ATTEMPT_1 =
 const MOCK_ATTEMPT_2 =
   'Last month I was supposed to run the demo for our biggest client, and the night before I found the staging environment completely broken — white screen, nothing loading. The account team had already flown in, so there was no moving the meeting. I stayed up rebuilding the seed data and, um, rehearsed a backup path on my laptop. In the morning I ran the whole demo locally instead. It went so smoothly the client never knew, and we closed the renewal two weeks later. Now I always keep a local fallback ready before any big demo.'
 
+import { requireActiveSession } from './_session.js'
+
 async function deepgram(audioBuffer, mimeType) {
   // filler_words=true is the load-bearing param here: Deepgram strips "um"/"uh"
   // by default, which would silently break Tier-A filler detection downstream.
@@ -104,6 +106,10 @@ async function geminiSTT(audioBuffer, mimeType) {
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  // Gate: the cost-incurring endpoints are the actual reason the app has a
+  // login, so the guard lives here, not only in the UI.
+  const session = await requireActiveSession(req, res)
+  if (!session) return
   try {
     const { audioBase64, mimeType = 'audio/webm', attemptNumber } = req.body || {}
     const provider = (process.env.STT_PROVIDER || 'mock').toLowerCase()

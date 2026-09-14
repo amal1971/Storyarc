@@ -9,6 +9,7 @@ import { geminiJSON, geminiConfigured, GeminiUnavailableError, GEMINI_MODEL } fr
 // so a saved output can be traced back to the prompt that produced it.
 const COMPARE_PROMPT_VERSION = 'compare-2026-07-24'
 import { getFramework } from '../src/lib/frameworks.js'
+import { requireActiveSession } from './_session.js'
 
 const SHARED_RULES = `Rules:
 - Name concrete differences. Quote or point at the actual words that appeared, disappeared, or moved between the two tellings. A sentence that could describe any two recordings is a failure.
@@ -62,6 +63,10 @@ ${SHARED_SCHEMA}`
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  // Gate: the cost-incurring endpoints are the actual reason the app has a
+  // login, so the guard lives here, not only in the UI.
+  const session = await requireActiveSession(req, res)
+  if (!session) return
   const { mode = 'lab', transcript1, transcript2, suggestedFix, frameworkId, steps1 } = req.body || {}
   if (!transcript1 || !transcript2) {
     return res.status(400).json({ error: 'transcript1 and transcript2 required' })

@@ -7,6 +7,7 @@ import { geminiJSON, geminiConfigured, GeminiUnavailableError, GEMINI_MODEL } fr
 // so a saved output can be traced back to the prompt that produced it.
 const FRAMEWORK_PROMPT_VERSION = 'framework-2026-09-04'
 import { getFramework } from '../src/lib/frameworks.js'
+import { requireActiveSession } from './_session.js'
 
 const PROMPT = (transcript, fw) => `You are a storytelling coach. The speaker practiced the ${fw.fullName} (${fw.name}) framework on a spoken story.
 
@@ -41,6 +42,10 @@ ${transcript}`
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  // Gate: the cost-incurring endpoints are the actual reason the app has a
+  // login, so the guard lives here, not only in the UI.
+  const session = await requireActiveSession(req, res)
+  if (!session) return
   const { transcript, frameworkId } = req.body || {}
   const fw = getFramework(frameworkId)
   if (!transcript || !fw) return res.status(400).json({ error: 'transcript and valid frameworkId required' })

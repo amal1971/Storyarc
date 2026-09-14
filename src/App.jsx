@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { StartScreen } from './components/StartScreen.jsx'
+import { LoginGate } from './components/LoginGate.jsx'
 import { LabPickScreen } from './components/LabPickScreen.jsx'
 import { RecordScreen } from './components/RecordScreen.jsx'
 import { ProcessingScreen } from './components/ProcessingScreen.jsx'
@@ -17,6 +18,14 @@ import { randomSituation } from './lib/frameworks.js'
 import {
   newPairId, buildAttemptRecord, saveRecord, loadRecords, exportSession, annotatePair, clearSession,
 } from './lib/session.js'
+import { fetchSessionStatus, logout } from './lib/auth.js'
+
+const POLL_MS = 15000
+
+function formatRemaining(seconds) {
+  const s = Math.max(0, Math.floor(seconds))
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
 
 export const REPO_URL = 'https://github.com/amal1971/Storyarc'
 
@@ -41,6 +50,65 @@ export default function App() {
   const pairIdRef = useRef(null)
   const lastInputRef = useRef(null)
   const seenSituationsRef = useRef(new Set())
+
+  // Access gate. 'checking' → first status call in flight; null → signed out;
+  // 'locked' → this account's lifetime allowance is spent; 'disabled' →
+  // AUTH_ENABLED=false, the app behaves exactly as it did before the gate.
+  const [auth, setAuth] = useState('checking')
+  const [lockedEmail, setLockedEmail] = useState(null)
+  const [remaining, setRemaining] = useState(null)
+
+  const applyAuthError = (err) => {
+    if (err.status === 403) {
+      setLockedEmail(err.email)
+      setAuth('locked')
+    } else {
+      setAuth(null)
+    }
+  }
+
+  const onAuthenticated = (session) => {
+    if (session?.authDisabled) return setAuth('disabled')
+    setAuth(session)
+    setRemaining(session.remainingSeconds)
+  }
+
+  // The cookie outlives a page refresh, so ask once on mount before showing
+  // anyone a sign-in button they may not need.
+  useEffect(() => {
+    let live = true
+    fetchSessionStatus()
+      .then((s) => { if (live) onAuthenticated(s) })
+      .catch((err) => { if (live) applyAuthError(err) })
+    return () => { live = false }
+  }, [])
+
+  // Each poll both refreshes the countdown and checkpoints elapsed time
+  // server-side — that's what makes a closed tab still cost its minutes.
+  const authed = auth && typeof auth === 'object'
+  useEffect(() => {
+    if (!authed) return
+    const id = setInterval(() => {
+      fetchSessionStatus()
+        .then((s) => setRemaining(s.remainingSeconds))
+        .catch(applyAuthError)
+    }, POLL_MS)
+    return () => clearInterval(id)
+  }, [authed])
+
+  // Local tick so the chip counts down smoothly between polls; every poll
+  // resyncs it, so drift can't accumulate.
+  useEffect(() => {
+    if (!authed || remaining == null) return
+    const id = setInterval(() => setRemaining((r) => (r == null ? r : Math.max(0, r - 1))), 1000)
+    return () => clearInterval(id)
+  }, [authed, remaining == null])
+
+  const signOut = () => {
+    logout().catch(() => {})
+    setAuth(null)
+    setRemaining(null)
+  }
 
   const mode = screen.startsWith('gym') ? 'gym' : 'lab'
 
@@ -264,6 +332,26 @@ export default function App() {
         ]
   const showCrumbs = screen !== 'start' && !sideScreen
 
+  if (auth === 'checking') {
+    return (
+      <div className="app">
+        <div className="gate-splash" role="status" aria-live="polite">Checking your session…</div>
+      </div>
+    )
+  }
+
+  if (auth === null || auth === 'locked') {
+    return (
+      <div className="app">
+        <LoginGate
+          locked={auth === 'locked'}
+          lockedEmail={lockedEmail}
+          onAuthenticated={onAuthenticated}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="app">
       <header className="topbar">
@@ -286,6 +374,23 @@ export default function App() {
             </span>
           )
         })()}
+        {authed && (auth.unlimited || remaining != null) && (
+          <span className="session-box">
+            {auth.unlimited ? (
+              <span className="session-chip" title={`${auth.email || 'Signed in'} · admin, no cap`}>
+                ♾️ Unlimited
+              </span>
+            ) : (
+              <span
+                className={`session-chip ${remaining <= 300 ? 'session-chip--low' : ''}`}
+                title={`${auth.email || 'Signed in'} · time left on this account`}
+              >
+                ⏳ {formatRemaining(remaining)} left
+              </span>
+            )}
+            <button className="link-btn" onClick={signOut}>Log out</button>
+          </span>
+        )}
       </header>
 
       <main>
@@ -415,7 +520,7 @@ export default function App() {
       </main>
 
       <footer className="footer">
-        <span>Local-first · no accounts · audio never leaves your device · transcripts stay in this browser</span>
+        <span>Local-first practice data · audio never leaves your device · transcripts stay in this browser</span>
         <span className="footer-links">
           <button className="link-btn" onClick={() => setScreen('about')}>How it’s built</button>
           <button className="link-btn" onClick={() => setScreen('history')}>History</button>

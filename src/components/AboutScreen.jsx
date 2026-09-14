@@ -83,7 +83,7 @@ export function AboutScreen({ onBack, repoUrl }) {
             ))}
           </div>
           <p style={{ marginTop: 10 }}>
-            Local-first by design: no accounts, no database. Audio never leaves your device; transcripts stay in your own browser and can be exported or cleared from <em>History</em>.
+            Local-first by design: your practice data is never synced or stored on a server. Audio never leaves your device; transcripts stay in your own browser and can be exported or cleared from <em>History</em>. Signing in exists only to meter this public demo — the server keeps your Google account id and the seconds you’ve used, nothing more.
           </p>
         </div>
       </div>

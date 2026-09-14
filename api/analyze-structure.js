@@ -2,6 +2,7 @@
 // NOTE: replace PROMPT with the paste-ready version from
 // StoryArc_Task1_Rubrics_Prompts_EvalSet.md before Milestone 2 sign-off.
 import { geminiJSON, geminiConfigured, GeminiUnavailableError, GEMINI_MODEL } from './_gemini.js'
+import { requireActiveSession } from './_session.js'
 
 // Bump when the prompt below changes materially. Stored with every result
 // so a saved output can be traced back to the prompt that produced it.
@@ -31,6 +32,10 @@ ${transcript}`
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'POST only' })
+  // Gate: the cost-incurring endpoints are the actual reason the app has a
+  // login, so the guard lives here, not only in the UI.
+  const session = await requireActiveSession(req, res)
+  if (!session) return
   const { transcript } = req.body || {}
   if (!transcript) return res.status(400).json({ error: 'transcript required' })
   if (!geminiConfigured()) {

@@ -505,9 +505,10 @@ body {
   height: 56px; margin-top: -6px;
 }
 .level-bar {
-  width: 8px; min-height: 4px; border-radius: 4px;
+  width: 8px; height: 56px; border-radius: 4px;
   background: linear-gradient(180deg, var(--violet), var(--coral));
-  border: 1.5px solid var(--ink); transition: height 60ms linear;
+  border: 1.5px solid var(--ink);
+  transform-origin: bottom; transition: transform 60ms linear;
 }
 .level-hint { color: var(--muted); font-size: 0.82rem; margin: 0; }
 @media (prefers-reduced-motion: reduce) {
@@ -622,3 +623,33 @@ body {
 }
 .fw-detail-lead { margin: 0 0 14px; color: var(--muted); font-size: 0.95rem; }
 .fw-detail-lead strong { color: var(--ink); }
+
+/* ————— Access gate (Google sign-in + lifetime time cap) ————— */
+/* The gate is a waiting room, not a screen to admire: the Google button is the
+   only element carrying --shadow here, so there is exactly one thing to do. */
+.gate { margin-top: 40px; }
+.gate-panel {
+  display: flex; flex-direction: column; align-items: center; gap: 12px;
+  background: var(--card); border: var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 28px 26px; min-width: min(360px, 100%);
+}
+.gate-button { min-height: 44px; }
+.gate-note { margin: 0; color: var(--muted); font-size: 0.88rem; }
+.gate-error { margin: 0; color: var(--coral-btn); font-weight: 700; font-size: 0.88rem; }
+.gate-fineprint {
+  max-width: 480px; text-align: center; color: var(--muted);
+  font-size: 0.8rem; line-height: 1.5; margin: 4px 0 0;
+}
+.gate-splash { text-align: center; color: var(--muted); padding: 80px 0; font-weight: 600; }
+
+.session-box { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; }
+.session-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.78rem; font-weight: 700; padding: 5px 12px; border-radius: 999px;
+  border: 2px solid var(--ink); background: var(--card); white-space: nowrap;
+}
+/* Under five minutes the chip stops being ambient furniture and starts being
+   a warning — colour is the only thing that changes, so it can't be missed
+   without being alarming. */
+.session-chip--low { background: var(--bg-spot-1); }
+.session-box .link-btn { font-size: 0.8rem; padding: 0; }

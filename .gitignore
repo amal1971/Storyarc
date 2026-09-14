@@ -8,3 +8,6 @@ dist
 # Working notes — kept local, not part of the public repo
 PROGRESS_TRACKER.md
 docs/
+
+# Local design-review tool config, not app code
+.impeccable/
