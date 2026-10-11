@@ -24,11 +24,13 @@ export function ProcessingScreen({ error, onRetry, onReRecord, variant = 'lab' }
   }, [error, STEPS.length])
 
   if (error) {
-    const EMOJI = { gibberish: '🤔', busy: '⏳', llm: '📡' }
+    const EMOJI = { gibberish: '🤔', busy: '⏳', llm: '📡', stt: '🎧', service: '🛠️' }
     const TITLE = {
       gibberish: 'We couldn’t make out a story',
       busy: 'The model is busy right now',
       llm: 'Something hiccuped',
+      stt: 'We couldn’t transcribe that',
+      service: 'StoryArc is taking a short break',
     }
     const BODY = {
       gibberish: 'The recording came back mostly empty. Mic too far away, maybe? Give it another go.',
@@ -36,6 +38,8 @@ export function ProcessingScreen({ error, onRetry, onReRecord, variant = 'lab' }
       // feedback, which is worse than a short wait.
       busy: 'Google’s servers are under heavy load and turned us away three times. Your recording is safe — give it a few seconds and hit retry. We won’t show you made-up feedback instead.',
       llm: 'The analysis call didn’t come back. Retry, or re-record if it keeps happening.',
+      stt: 'The transcription service didn’t answer. Your recording is still here — hit retry, or re-record if it keeps happening.',
+      service: 'The analysis service needs attention on our side, so we can’t analyse stories right now. Please try again a little later — we won’t show you made-up feedback in the meantime.',
     }
     return (
       <div className="screen processing-screen">
@@ -43,10 +47,10 @@ export function ProcessingScreen({ error, onRetry, onReRecord, variant = 'lab' }
           <div className="big-emoji">{EMOJI[error.kind] || '📡'}</div>
           <h2>{TITLE[error.kind] || TITLE.llm}</h2>
           <p className="muted">{BODY[error.kind] || BODY.llm}</p>
-          {error.kind !== 'gibberish' && (
+          {error.kind !== 'gibberish' && error.kind !== 'service' && (
             <button className="btn btn-primary" onClick={onRetry}>Retry analysis</button>
           )}
-          <button className={error.kind === 'gibberish' ? 'btn btn-primary' : 'link-btn'} onClick={onReRecord}>
+          <button className={error.kind === 'gibberish' || error.kind === 'service' ? 'btn btn-primary' : 'link-btn'} onClick={onReRecord}>
             🎙️ Re-record
           </button>
         </div>

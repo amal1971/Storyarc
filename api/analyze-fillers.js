@@ -2,7 +2,7 @@
 // Generalized classification via Deletion Test + Function Check (not a word list).
 // NOTE: replace PROMPT with the paste-ready version from
 // StoryArc_Filler_Prompt_v2_Generalized.md before Milestone 2 sign-off.
-import { geminiJSON, geminiConfigured, GeminiUnavailableError, GEMINI_MODEL } from './_gemini.js'
+import { geminiJSON, geminiConfigured, sendGeminiError, GEMINI_MODEL } from './_gemini.js'
 import { requireActiveSession } from './_session.js'
 
 // Bump when the prompt below changes materially. Stored with every result
@@ -49,12 +49,7 @@ export default async function handler(req, res) {
     )
     return res.status(200).json({ events, provider: 'gemini', prompt_version: FILLERS_PROMPT_VERSION, model: GEMINI_MODEL })
   } catch (err) {
-    console.error('[analyze-fillers]', err)
-    // A configured key that is merely overloaded must not be dressed up as
-    // a result — the client shows a retry instead of fabricating output.
-    if (err instanceof GeminiUnavailableError) {
-      return res.status(503).json({ error: 'model_unavailable', retryable: true, configured: true })
-    }
-    return res.status(502).json({ error: 'analysis_failed', retryable: false, configured: true })
+    // Overloaded, out of credit, or failed: never dressed up as a result.
+    return sendGeminiError(res, err, 'analyze-fillers')
   }
 }

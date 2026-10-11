@@ -114,7 +114,12 @@ export default async function handler(req, res) {
     const { audioBase64, mimeType = 'audio/webm', attemptNumber } = req.body || {}
     const provider = (process.env.STT_PROVIDER || 'mock').toLowerCase()
 
-    if (provider === 'mock' || !audioBase64) {
+    if (provider !== 'mock' && !audioBase64) {
+      // A real provider is configured: an empty upload is a client bug, not a
+      // reason to hand back the canned demo story as if it were their recording.
+      return res.status(400).json({ error: 'audio_required', retryable: false })
+    }
+    if (provider === 'mock') {
       const text = Number(attemptNumber) === 2 ? MOCK_ATTEMPT_2 : MOCK_ATTEMPT_1
       return res.status(200).json({ text, provider: 'mock' })
     }
@@ -129,6 +134,6 @@ export default async function handler(req, res) {
     return res.status(200).json(out)
   } catch (err) {
     console.error('[transcribe]', err)
-    return res.status(502).json({ error: 'transcription failed' })
+    return res.status(502).json({ error: 'transcription_failed', retryable: true })
   }
 }

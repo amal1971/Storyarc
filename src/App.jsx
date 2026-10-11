@@ -217,7 +217,9 @@ export default function App() {
     const t = await getTranscript(input, attemptNumber)
     const wordCount = countWords(t.text)
     if (wordCount < 10) return { gibberish: true }
-    const fwAnalysis = await analyzeFramework(t.text, framework.id)
+    // The question being answered goes along so the coach can tell a strong
+    // story that doesn't actually answer it apart from one that does.
+    const fwAnalysis = await analyzeFramework(t.text, framework.id, situation?.text)
     const events = detectDeterministic(t.text)
     const durationS = input.seconds ?? null
     const wpm = wordsPerMinute(wordCount, durationS)
@@ -308,9 +310,18 @@ export default function App() {
       }
     } catch (err) {
       console.error(err)
-      // A model that is up but overloaded gets its own state: it is worth
-      // retrying in ten seconds, unlike a genuine failure.
-      setProcError({ kind: err?.retryable ? 'busy' : 'llm' })
+      // Session expired or allowance used up mid-story: show the sign-in or
+      // locked screen, never sample feedback.
+      if (err?.status === 401) return setAuth(null)
+      if (err?.status === 403) return applyAuthError(err)
+      // Each failure gets an honest state of its own; none of them is ever
+      // papered over with demo output.
+      const kind =
+        err?.stage === 'stt' ? 'stt'
+          : err?.reason === 'billing' ? 'service'
+            : err?.retryable ? 'busy'
+              : 'llm'
+      setProcError({ kind })
     }
   }
 
@@ -520,7 +531,7 @@ export default function App() {
       </main>
 
       <footer className="footer">
-        <span>Local-first practice data · audio never leaves your device · transcripts stay in this browser</span>
+        <span>Local-first practice data · your history stays in this browser</span>
         <span className="footer-links">
           <button className="link-btn" onClick={() => setScreen('about')}>How it’s built</button>
           <button className="link-btn" onClick={() => setScreen('history')}>History</button>

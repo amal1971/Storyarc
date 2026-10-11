@@ -65,7 +65,16 @@ export function getSession(req) {
     const eq = part.indexOf('=')
     if (eq === -1) continue
     if (part.slice(0, eq).trim() !== COOKIE_NAME) continue
-    return verifyCookie(decodeURIComponent(part.slice(eq + 1).trim()))
+    // A malformed percent-escape (e.g. "%E0%A4%A") makes decodeURIComponent
+    // throw, which used to crash every guarded endpoint with a 500. Treat it
+    // like any other invalid cookie: no session, clean 401.
+    let raw
+    try {
+      raw = decodeURIComponent(part.slice(eq + 1).trim())
+    } catch {
+      return null
+    }
+    return verifyCookie(raw)
   }
   return null
 }

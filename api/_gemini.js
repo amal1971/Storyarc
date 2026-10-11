@@ -13,6 +13,7 @@ export const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-3.6-flash'
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504])
 const MAX_ATTEMPTS = 3
 const BASE_DELAY_MS = 700
+const MAX_WAIT_MS = 2500
 
 // Thrown when every attempt failed for a reason that is about the service,
 // not about us. Callers use this to tell "temporarily unavailable" apart from
@@ -28,11 +29,43 @@ export class GeminiUnavailableError extends Error {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
+// Thrown when Google refuses the call for billing reasons (HTTP 402: the
+// prepaid balance is empty). Retrying cannot help, and the user should be
+// told the service needs attention rather than "something hiccuped".
+export class GeminiBillingError extends Error {
+  constructor(message) {
+    super(message)
+    this.name = 'GeminiBillingError'
+    this.retryable = false
+  }
+}
+
 export function geminiConfigured() {
   return Boolean(process.env.GEMINI_API_KEY)
 }
 
-export async function geminiJSON(prompt, { temperature = 0, signal } = {}) {
+// One place that turns a thrown Gemini error into the JSON contract the client
+// relies on (`configured`, `retryable`, `reason`). Every analyze-* handler and
+// compare-attempts use it, so the mapping can't drift between endpoints.
+export function sendGeminiError(res, err, tag) {
+  console.error(`[${tag}]`, err)
+  if (err instanceof GeminiBillingError) {
+    return res.status(503).json({ error: 'service_unavailable', reason: 'billing', retryable: false, configured: true })
+  }
+  if (err instanceof GeminiUnavailableError) {
+    return res.status(503).json({ error: 'model_unavailable', retryable: true, configured: true })
+  }
+  return res.status(502).json({ error: 'analysis_failed', retryable: false, configured: true })
+}
+
+// schema → Gemini `responseSchema` (structured output: enums and required keys
+// enforced by the API, not just requested in prose).
+// thinkingBudget → defaults to 0, which turns off the model's hidden reasoning
+// pass for EVERY call. Thinking tokens are billed at the output rate (5x input)
+// and were over half of each call's tokens; on the Gym corpus turning it off
+// cut latency ~3x and cost ~4x with identical verdicts. Pass a positive budget
+// only for a call that has been shown (with the harness) to need it.
+export async function geminiJSON(prompt, { temperature = 0, signal, schema, thinkingBudget = 0 } = {}) {
   const key = process.env.GEMINI_API_KEY
   if (!key) throw new Error('GEMINI_API_KEY not set')
 
@@ -49,7 +82,12 @@ export async function geminiJSON(prompt, { temperature = 0, signal } = {}) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature, responseMimeType: 'application/json' },
+            generationConfig: {
+              temperature,
+              responseMimeType: 'application/json',
+              ...(schema ? { responseSchema: schema } : {}),
+              thinkingConfig: { thinkingBudget },
+            },
           }),
           signal,
         },
@@ -79,12 +117,18 @@ export async function geminiJSON(prompt, { temperature = 0, signal } = {}) {
     lastStatus = res.status
     lastBody = await res.text()
 
+    if (res.status === 402) throw new GeminiBillingError(`gemini 402: ${lastBody}`)
     if (!RETRYABLE_STATUS.has(res.status) || attempt === MAX_ATTEMPTS) break
-    // Honour Retry-After when the API sends one, else exponential backoff.
+    // Honour Retry-After when the API sends one, else exponential backoff —
+    // capped, because Google sometimes says "retry in 47s", which would blow
+    // straight through the serverless function timeout.
     const retryAfter = Number(res.headers.get('retry-after'))
-    const wait = Number.isFinite(retryAfter) && retryAfter > 0
-      ? retryAfter * 1000
-      : BASE_DELAY_MS * 2 ** (attempt - 1) + Math.random() * 250
+    const wait = Math.min(
+      MAX_WAIT_MS,
+      Number.isFinite(retryAfter) && retryAfter > 0
+        ? retryAfter * 1000
+        : BASE_DELAY_MS * 2 ** (attempt - 1) + Math.random() * 250,
+    )
     await sleep(wait)
   }
 

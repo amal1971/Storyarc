@@ -23,8 +23,12 @@ async function postJSON(url, body) {
     try { info = await res.json() } catch { /* non-JSON error body */ }
     const err = new Error(`${url} failed: ${res.status} ${info.error || ''}`.trim())
     err.status = res.status
-    err.configured = info.configured === true
+    // Only an explicit "not_configured" from the server means zero-key demo
+    // mode. A 401/403 from the login gate, a 500, a billing error — none of
+    // those are a reason to show sample feedback.
+    err.configured = !(info.error === 'not_configured' || info.configured === false)
     err.retryable = info.retryable === true
+    err.reason = info.reason || null
     throw err
   }
   return res.json()
@@ -39,12 +43,14 @@ async function postJSON(url, body) {
 // one. So when the service is merely unavailable, fail loudly and let the UI
 // offer a retry.
 function degradeOrThrow(err, tag, mockValue) {
-  if (err.configured) {
-    console.warn(`[${tag}] model unavailable, surfacing to the user:`, err.message)
-    throw err
+  // Strict: mock only on an explicit "no key configured" from the server.
+  // Network faults and malformed payloads (no `configured` flag at all) throw.
+  if (err.configured === false) {
+    console.warn(`[${tag}] no key configured — using the demo mock:`, err.message)
+    return mockValue
   }
-  console.warn(`[${tag}] no key configured — using the demo mock:`, err.message)
-  return mockValue
+  console.warn(`[${tag}] analysis failed, surfacing to the user:`, err.message)
+  throw err
 }
 
 // ---------- Call 1: Tier-B filler adjudication ----------
@@ -187,9 +193,9 @@ function mockFramework(transcript, framework) {
   return { steps, feedback_line, retelling, provider: 'mock' }
 }
 
-export async function analyzeFramework(transcript, frameworkId) {
+export async function analyzeFramework(transcript, frameworkId, situation) {
   try {
-    const data = await postJSON('/api/analyze-framework', { transcript, frameworkId })
+    const data = await postJSON('/api/analyze-framework', { transcript, frameworkId, situation })
     if (!Array.isArray(data.steps) || !Array.isArray(data.retelling)) throw new Error('bad payload')
     return data
   } catch (err) {
@@ -242,6 +248,9 @@ export async function analyzeStructure(transcript) {
   let data
   try {
     data = await postJSON('/api/analyze-structure', { transcript })
+    if (!data || typeof data.feedback_line !== 'string' || typeof data.suggested_fix !== 'string') {
+      throw new Error('bad payload')
+    }
   } catch (err) {
     return degradeOrThrow(err, 'analyze-structure', mockStructure(transcript))
   }

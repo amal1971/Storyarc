@@ -143,7 +143,6 @@ export function RecordScreen({ prompt, attemptNumber, onSubmit, onCancel, scaffo
             <h2>Mic access is blocked</h2>
             <p className="muted">
               Allow the microphone in your browser’s address bar and try again — or skip the mic entirely below.
-              Your audio never leaves your device.
             </p>
             <button className="btn btn-primary" onClick={rec.start}>Try the mic again</button>
             <button className="link-btn" onClick={() => window.location.reload()}>Reload the page</button>

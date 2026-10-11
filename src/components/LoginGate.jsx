@@ -3,8 +3,8 @@ import { loginWithGoogle } from '../lib/auth.js'
 
 const CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
 
-function limitLabel(seconds) {
-  const mins = Math.round((seconds ?? 1800) / 60)
+function limitLabel(mins) {
+  if (!mins) return 'a limited number of minutes'
   return `${mins} minute${mins === 1 ? '' : 's'}`
 }
 
@@ -14,6 +14,18 @@ export function LoginGate({ locked = false, lockedEmail = null, onAuthenticated 
   const [error, setError] = useState(null)
   const [lockedNow, setLockedNow] = useState(locked)
   const [lockedAs, setLockedAs] = useState(lockedEmail)
+  // Read the real allowance from the server rather than hardcoding it, so the
+  // copy always matches USAGE_LIMIT_MINUTES in Vercel.
+  const [limitMins, setLimitMins] = useState(null)
+
+  useEffect(() => {
+    let live = true
+    fetch('/api/health')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((h) => { if (live && h?.usageLimitMinutes > 0) setLimitMins(h.usageLimitMinutes) })
+      .catch(() => {})
+    return () => { live = false }
+  }, [])
 
   useEffect(() => {
     if (!CLIENT_ID || !buttonRef.current) return
@@ -74,13 +86,13 @@ export function LoginGate({ locked = false, lockedEmail = null, onAuthenticated 
       {lockedNow ? (
         <p className="screen-sub">
           {lockedAs ? <><strong>{lockedAs}</strong> has</> : 'This account has'} used its full{' '}
-          {limitLabel()} of StoryArc. There’s no reset — it’s a lifetime allowance per account.
+          {limitLabel(limitMins)} of StoryArc. There’s no reset — it’s a lifetime allowance per account.
           You can sign in with a different Google account below.
         </p>
       ) : (
         <p className="screen-sub">
           StoryArc is a public demo, so each Google account gets a lifetime total of{' '}
-          {limitLabel()} — it counts down from the moment you sign in.
+          {limitLabel(limitMins)} — it counts down from the moment you sign in.
         </p>
       )}
 
@@ -92,7 +104,7 @@ export function LoginGate({ locked = false, lockedEmail = null, onAuthenticated 
 
       <p className="gate-fineprint">
         We store your Google account id and how many seconds you’ve used — nothing else.
-        Your recordings, transcripts and practice history never leave this browser.
+        Recordings are transcribed and analysed by our AI providers but never stored on our servers; your practice history stays in this browser.
       </p>
     </div>
   )

@@ -3,7 +3,7 @@
 // sees BOTH tellings at once, together with the advice the speaker was given
 // after the first. Without it the app can compare two numbers but can never say
 // whether its own coaching actually landed.
-import { geminiJSON, geminiConfigured, GeminiUnavailableError, GEMINI_MODEL } from './_gemini.js'
+import { geminiJSON, geminiConfigured, sendGeminiError, GEMINI_MODEL } from './_gemini.js'
 
 // Bump when the prompt below changes materially. Stored with every result
 // so a saved output can be traced back to the prompt that produced it.
@@ -101,12 +101,7 @@ export default async function handler(req, res) {
       model: GEMINI_MODEL,
     })
   } catch (err) {
-    console.error('[compare-attempts]', err)
-    // A configured key that is merely overloaded must not be dressed up as
-    // a result — the client shows a retry instead of fabricating output.
-    if (err instanceof GeminiUnavailableError) {
-      return res.status(503).json({ error: 'model_unavailable', retryable: true, configured: true })
-    }
-    return res.status(502).json({ error: 'analysis_failed', retryable: false, configured: true })
+    // Overloaded, out of credit, or failed: never dressed up as a result.
+    return sendGeminiError(res, err, 'compare-attempts')
   }
 }
