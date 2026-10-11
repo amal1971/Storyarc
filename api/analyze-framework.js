@@ -4,6 +4,7 @@
 import { geminiJSON, geminiConfigured, sendGeminiError, GEMINI_MODEL } from './_gemini.js'
 import { getFramework } from '../src/lib/frameworks.js'
 import { requireActiveSession } from './_session.js'
+import { rejectOversize } from './_limits.js'
 
 // Bump when the prompt below changes materially. Stored with every result
 // so a saved output can be traced back to the prompt that produced it.
@@ -115,6 +116,7 @@ export default async function handler(req, res) {
   const { transcript, frameworkId, situation } = req.body || {}
   const fw = getFramework(frameworkId)
   if (!transcript || !fw) return res.status(400).json({ error: 'transcript and valid frameworkId required' })
+  if (rejectOversize(res, transcript)) return
   if (!geminiConfigured()) {
     // Zero-key demo mode: the client's deterministic mock is the intended path.
     return res.status(503).json({ error: 'not_configured', retryable: false, configured: false })

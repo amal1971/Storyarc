@@ -10,6 +10,7 @@ import { geminiJSON, geminiConfigured, sendGeminiError, GEMINI_MODEL } from './_
 const COMPARE_PROMPT_VERSION = 'compare-2026-07-24'
 import { getFramework } from '../src/lib/frameworks.js'
 import { requireActiveSession } from './_session.js'
+import { rejectOversize } from './_limits.js'
 
 const SHARED_RULES = `Rules:
 - Name concrete differences. Quote or point at the actual words that appeared, disappeared, or moved between the two tellings. A sentence that could describe any two recordings is a failure.
@@ -71,6 +72,7 @@ export default async function handler(req, res) {
   if (!transcript1 || !transcript2) {
     return res.status(400).json({ error: 'transcript1 and transcript2 required' })
   }
+  if (rejectOversize(res, transcript1, transcript2)) return
 
   let prompt
   if (mode === 'gym') {

@@ -4,6 +4,9 @@ import { countWords } from '../lib/fillers.js'
 import { sampleFor, loadSampleBlob } from '../lib/samples.js'
 
 const MIN_TYPED_WORDS = 40
+// About a three-minute telling — the same ceiling as the recording hard stop.
+// The server enforces a matching limit, so this is a courtesy, not the guard.
+const MAX_TYPED_WORDS = 600
 
 // Used for lab attempt 1, the lab retry (attempt 2), and both gym rounds.
 // In retry mode the screen is deliberately bare: prompt + record button only —
@@ -60,7 +63,7 @@ export function RecordScreen({ prompt, attemptNumber, onSubmit, onCancel, scaffo
   }
 
   const submitTyped = () => {
-    if (typedWords < MIN_TYPED_WORDS) return
+    if (typedWords < MIN_TYPED_WORDS || typedWords > MAX_TYPED_WORDS) return
     onSubmit({ text: typed.trim(), inputMode: 'text' })
   }
 
@@ -77,10 +80,17 @@ export function RecordScreen({ prompt, attemptNumber, onSubmit, onCancel, scaffo
             autoFocus
           />
           <div className="text-meta">
-            <span>{typedWords} words{typedWords < MIN_TYPED_WORDS ? ` · ${MIN_TYPED_WORDS - typedWords} more to analyze` : ' · ready'}</span>
+            <span>
+              {typedWords} words
+              {typedWords < MIN_TYPED_WORDS
+                ? ` · ${MIN_TYPED_WORDS - typedWords} more to analyze`
+                : typedWords > MAX_TYPED_WORDS
+                  ? ` · ${typedWords - MAX_TYPED_WORDS} over the ${MAX_TYPED_WORDS}-word limit — trim it to about three minutes of talking`
+                  : ' · ready'}
+            </span>
             <button className="link-btn" onClick={() => setShowText(false)}>Use the mic instead</button>
           </div>
-          <button className="btn btn-primary" onClick={submitTyped} disabled={typedWords < MIN_TYPED_WORDS}>
+          <button className="btn btn-primary" onClick={submitTyped} disabled={typedWords < MIN_TYPED_WORDS || typedWords > MAX_TYPED_WORDS}>
             ✨ Analyze what I typed
           </button>
         </>
