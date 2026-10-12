@@ -1,3 +1,5 @@
+import { locateToken } from './verbatim.js'
+
 // Tier A: deterministic, client-side filler detection. No LLM involved.
 // Fixed list per PRD §8.3 — matched case-insensitively on word boundaries.
 export const TIER_A_FILLERS = [
@@ -73,29 +75,39 @@ export function detectDeterministic(text) {
   return [...reps, ...listed].sort((a, b) => a.start - b.start)
 }
 
-// Merge deterministic + Tier B events. Tier B events arrive as { token, category, context }.
-// We locate each Tier B token in the transcript (all word-boundary occurrences)
-// and drop anything overlapping an existing deterministic span — Tier A always wins.
-export function mergeEvents(text, tierAEvents, tierBEvents) {
-  const merged = [...tierAEvents]
+// Merge deterministic + Tier B events.
+//
+// Tier B events arrive from the server already pinned to one span
+// ({ token, category, start, end }); older or mock events carry only
+// { token, context, occurrence } and are located here. Either way ONE model
+// judgement highlights ONE place — the old version highlighted every
+// occurrence of the token, so one discourse "like" lit up "I like pizza" too.
+//
+// `overrides` are spans where the model judged a fixed-list filler to be real
+// content (an interrogative "Do you know that feeling…"); the matching Tier A
+// event is dropped. Deterministic tiers still win every other overlap.
+export function mergeEvents(text, tierAEvents, tierBEvents, overrides = []) {
+  const cancelled = (ev) =>
+    ev.category === 'listed_filler' &&
+    (overrides || []).some((o) => ev.start < o.end && ev.end > o.start)
+  const merged = (tierAEvents || []).filter((ev) => !cancelled(ev))
   const overlaps = (s, e) => merged.some((ev) => s < ev.end && e > ev.start)
   for (const b of tierBEvents || []) {
     if (!b || !b.token) continue
-    const re = new RegExp('\\b' + escapeRegex(b.token) + '\\b', 'gi')
-    let m
-    while ((m = re.exec(text)) !== null) {
-      const s = m.index
-      const e = m.index + m[0].length
-      if (!overlaps(s, e)) {
-        merged.push({
-          token: b.token.toLowerCase(),
-          start: s,
-          end: e,
-          tier: 'B',
-          category: b.category || 'contextual_filler',
-        })
-      }
+    let span = null
+    if (Number.isInteger(b.start) && Number.isInteger(b.end) && b.end > b.start && b.end <= text.length) {
+      span = { start: b.start, end: b.end }
+    } else {
+      span = locateToken(text, b.token, { context: b.context, occurrence: b.occurrence })
     }
+    if (!span || overlaps(span.start, span.end)) continue
+    merged.push({
+      token: String(b.token).toLowerCase(),
+      start: span.start,
+      end: span.end,
+      tier: 'B',
+      category: b.category || 'contextual_filler',
+    })
   }
   return merged.sort((a, b) => a.start - b.start)
 }

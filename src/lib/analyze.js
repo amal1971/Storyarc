@@ -244,10 +244,10 @@ export async function fetchHealth() {
   }
 }
 
-export async function analyzeStructure(transcript) {
+export async function analyzeStructure(transcript, promptText) {
   let data
   try {
-    data = await postJSON('/api/analyze-structure', { transcript })
+    data = await postJSON('/api/analyze-structure', { transcript, promptText })
     if (!data || typeof data.feedback_line !== 'string' || typeof data.suggested_fix !== 'string') {
       throw new Error('bad payload')
     }

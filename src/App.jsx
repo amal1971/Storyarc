@@ -306,9 +306,10 @@ export default function App() {
     if (wordCount < 10) return { gibberish: true }
     const [tierB, structure] = await Promise.all([
       analyzeFillers(t.text),
-      analyzeStructure(t.text),
+      // The prompt they chose (not "tell your own story") gives the coach context.
+      analyzeStructure(t.text, ctx.prompt?.id && ctx.prompt.id !== 'own-story' ? ctx.prompt.text : null),
     ])
-    const events = mergeEvents(t.text, detectDeterministic(t.text), tierB.events)
+    const events = mergeEvents(t.text, detectDeterministic(t.text), tierB.events, tierB.overrides)
     const durationS = input.seconds ?? null
     const wpm = wordsPerMinute(wordCount, durationS)
     const inputMode = input.inputMode || 'mic'
