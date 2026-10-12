@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { SAMPLE } from '../lib/prompts.js'
 import { TranscriptView } from './TranscriptView.jsx'
-import { detectTierA } from '../lib/fillers.js'
+import { TellLine, ConnectedNote } from './Signals.jsx'
+import { detectDeterministic, mergeEvents, countWords, fillerRate } from '../lib/fillers.js'
 import { fetchHealth } from '../lib/analyze.js'
 import { GYM_SAMPLE, getFramework, SITUATIONS } from '../lib/frameworks.js'
 
@@ -88,7 +89,11 @@ function StatusChip({ health }) {
 
 function SampleModal({ onClose }) {
   const [tab, setTab] = useState('lab')
-  const events = detectTierA(SAMPLE.transcript)
+  // Same pipeline the live Lab uses: deterministic tiers in code + the saved
+  // Tier-B judgments, so the highlights and numbers can't drift from the copy.
+  const events = mergeEvents(SAMPLE.transcript, detectDeterministic(SAMPLE.transcript), SAMPLE.tierB)
+  const words = countWords(SAMPLE.transcript)
+  const rate = fillerRate(events.length, words)
   const framework = getFramework(GYM_SAMPLE.frameworkId)
   const situation = SITUATIONS.find((s) => s.id === GYM_SAMPLE.situationId)
   const stepMeta = Object.fromEntries(framework.steps.map((s, i) => [s.key, { ...s, index: i }]))
@@ -116,20 +121,29 @@ function SampleModal({ onClose }) {
           </button>
         </div>
 
+        <p className="sample-note">Real StoryArc output, saved so this preview opens instantly. Your own stories are analysed live.</p>
+
         {tab === 'lab' ? (
           <>
             <div className="section-tag tag-coral">Clarity — filler words</div>
             <TranscriptView text={SAMPLE.transcript} events={events} />
             <p className="metric-line">
-              <strong>{SAMPLE.fillerEvents} fillers</strong> in {SAMPLE.wordCount} words —{' '}
-              <strong>{SAMPLE.fillerRate} per 100 words</strong>
+              <strong>{events.length} filler{events.length === 1 ? '' : 's'}</strong> in {words} words —{' '}
+              <strong>{rate} per 100 words</strong>
             </p>
+            <TellLine events={events} />
             <div className="section-tag tag-violet">Craft — story shape</div>
-            <p className="feedback-line">“{SAMPLE.feedbackLine}”</p>
-            <div className="fix-chip">💡 {SAMPLE.suggestedFix}</div>
+            <p className="feedback-line">“{SAMPLE.structure.feedback_line}”</p>
+            {SAMPLE.structure.evidence && (
+              <blockquote className="evidence">“{SAMPLE.structure.evidence}”</blockquote>
+            )}
+            <ConnectedNote structure={SAMPLE.structure} />
+            <div className="fix-chip">💡 {SAMPLE.structure.suggested_fix}</div>
           </>
         ) : (
           <>
+            <div className="section-tag tag-coral">What they said</div>
+            <TranscriptView text={GYM_SAMPLE.transcript} events={[]} />
             <div className="section-tag tag-violet">{framework.name} — beat by beat</div>
             <div className="beat-verdicts">
               {GYM_SAMPLE.steps.map((s) => {

@@ -176,43 +176,50 @@ export function randomSituation(exclude) {
   return pool[Math.floor(Math.random() * pool.length)]
 }
 
-// Canned, pre-analyzed Gym result shown in the start-screen sample modal —
-// mirrors the shape GymFeedbackScreen expects, so users can preview Gym
-// before committing, the same way SAMPLE previews Lab.
+// Gym sample shown in the start screen's "Peek at a sample" modal: the story
+// itself, then the beat verdicts, feedback line and retelling. REAL saved
+// output from api/analyze-framework.js (generated 2026-10-12, see
+// `provenance`) for this transcript and situation — not hand-written. The
+// story piles three problems into its turn on purpose, so the verdicts have
+// one clear lesson (a "But" should be one sharp turn). Refresh by re-running
+// the endpoint and pasting the output verbatim.
 export const GYM_SAMPLE = {
   frameworkId: 'abt',
   situationId: 'weird-nickname',
+  transcript:
+    "Okay so the project is called Phoenix, right. So we were building the new onboarding flow, three of us, and we'd been at it for like three weeks, and the demo was on Friday. And um the team was in a really good place honestly. Then on Thursday night someone ran a migration script on staging and it wiped the whole database, and also CI was failing, and our designer was out sick, so it was kind of a mess. We rebuilt everything from a backup that was six hours old, on a call, till about two in the morning. And the demo went fine. And then in standup somebody said we should call it Phoenix because it came back from the ashes, and it just stuck.",
   steps: [
     {
-      key: 'and',
-      verdict: 'hit',
-      note: 'You grounded us fast — we know the project and the team before anything moves.',
+      "key": "and",
+      "verdict": "hit",
+      "note": "You clearly set the scene, explaining how \"three of us\" were building the onboarding flow before the Friday demo."
     },
     {
-      key: 'but',
-      verdict: 'partial',
-      note: 'Something breaks the calm here, but it arrives as a few things going wrong at once rather than one clean turn.',
+      "key": "but",
+      "verdict": "partial",
+      "note": "Instead of focusing on a single turn, you listed multiple issues like the database wipe, failing CI, and your designer being \"out sick\"."
     },
     {
-      key: 'therefore',
-      verdict: 'hit',
-      note: 'The ending follows from the trouble and lands somewhere definite — and it explains the nickname.',
-    },
+      "key": "therefore",
+      "verdict": "hit",
+      "note": "You showed how rebuilding from a backup led to a good demo and inspired the nickname \"Phoenix\" in standup."
+    }
   ],
   feedback_line:
-    'Two beats land cleanly — one sharper turn of the screw and the ABT spine clicks all the way into place.',
+    "You told a great origin story for the project name Phoenix, but you piled on several problems at once on Thursday night instead of focusing on one clear turn.",
   retelling: [
     {
-      step: 'and',
-      text: 'We were three weeks into building the new onboarding flow, and the whole team was heads-down trying to hit the demo date.',
+      "step": "and",
+      "text": "Three of us were building the new onboarding flow, and after three weeks of work, the demo was on Friday with the team in a really good place."
     },
     {
-      step: 'but',
-      text: 'But the staging database got wiped by a bad migration script the night before — and nobody noticed until standup.',
+      "step": "but",
+      "text": "But on Thursday night, someone ran a migration script on staging and it wiped the whole database."
     },
     {
-      step: 'therefore',
-      text: 'Therefore we rebuilt it from a six-hour-old backup live on a call, and someone joked we should ship a "phoenix" badge — the name stuck.',
-    },
+      "step": "therefore",
+      "text": "Therefore, we stayed on a call until about two in the morning and rebuilt everything from a six-hour-old backup. The demo went fine, and in standup somebody said we should call it Phoenix because it came back from the ashes."
+    }
   ],
+  provenance: { generated: '2026-10-12', prompt_version: "framework-2026-10-11", model: "gemini-3.6-flash" },
 }
