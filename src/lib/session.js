@@ -59,7 +59,9 @@ export function buildAttemptRecord({
 
 export function loadRecords() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]')
+    // A hand-edited or half-written store must not break saving or History.
+    return Array.isArray(parsed) ? parsed.filter((r) => r && typeof r === 'object') : []
   } catch {
     return []
   }
@@ -73,8 +75,12 @@ function persist(records) {
   }
 }
 
+// One record per (pair, attempt): retrying a failed step must replace the
+// earlier copy, not add a duplicate round to History and exports.
 export function saveRecord(record) {
-  const records = loadRecords()
+  const records = loadRecords().filter(
+    (r) => !(record.pair_id && r.pair_id === record.pair_id && r.attempt_number === record.attempt_number),
+  )
   records.push(record)
   persist(records)
   return records

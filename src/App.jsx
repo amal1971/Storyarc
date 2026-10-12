@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Component, useEffect, useRef, useState } from 'react'
 import { StartScreen } from './components/StartScreen.jsx'
 import { LoginGate } from './components/LoginGate.jsx'
 import { LabPickScreen } from './components/LabPickScreen.jsx'
@@ -20,7 +20,31 @@ import {
 } from './lib/session.js'
 import { fetchSessionStatus, logout } from './lib/auth.js'
 
-const POLL_MS = 15000
+// Each poll writes the elapsed time to Redis, so it is a real cost: 30 s is
+// plenty for a countdown, and hidden tabs skip it (the signed cookie keeps the
+// clock exact regardless; the next visible poll catches up).
+const POLL_MS = 30000
+const WARN_AT_SECONDS = 60
+
+// Last line of defence: a render crash shows a way back instead of a blank page.
+class ErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { failed: false } }
+  static getDerivedStateFromError() { return { failed: true } }
+  componentDidCatch(err) { console.error('[render]', err) }
+  render() {
+    if (!this.state.failed) return this.props.children
+    return (
+      <div className="screen processing-screen">
+        <div className="card center-card">
+          <div className="big-emoji">🧯</div>
+          <h2>Something went wrong on this screen</h2>
+          <p className="muted">Your saved rounds are safe in History. Head back to the start and try again.</p>
+          <button className="btn btn-primary" onClick={() => { this.setState({ failed: false }); this.props.onReset() }}>Back to the start</button>
+        </div>
+      </div>
+    )
+  }
+}
 
 function formatRemaining(seconds) {
   const s = Math.max(0, Math.floor(seconds))
@@ -50,6 +74,13 @@ export default function App() {
   const pairIdRef = useRef(null)
   const lastInputRef = useRef(null)
   const seenSituationsRef = useRef(new Set())
+  // Bumped by reset(): an analysis that finishes after the user went home is
+  // dropped instead of landing on wiped state (that used to white-screen).
+  const runIdRef = useRef(0)
+  // Where History / How it's built return to, so opening them mid-round no
+  // longer throws the round away.
+  const returnScreenRef = useRef('start')
+  const screenRef = useRef('start')
 
   // Access gate. 'checking' → first status call in flight; null → signed out;
   // 'locked' → this account's lifetime allowance is spent; 'disabled' →
@@ -83,18 +114,34 @@ export default function App() {
     return () => { live = false }
   }, [])
 
+  // A failed poll only means something when the server says so (401 signed
+  // out, 403 time used up). A network blip or a 500 used to sign people out
+  // mid-recording; now it is ignored and the next poll tries again.
+  const onPollError = (err) => {
+    if (err.status === 401 || err.status === 403) applyAuthError(err)
+  }
+  const checkSession = () => {
+    fetchSessionStatus().then((s) => setRemaining(s.remainingSeconds)).catch(onPollError)
+  }
+
   // Each poll both refreshes the countdown and checkpoints elapsed time
   // server-side — that's what makes a closed tab still cost its minutes.
   const authed = auth && typeof auth === 'object'
   useEffect(() => {
     if (!authed) return
     const id = setInterval(() => {
-      fetchSessionStatus()
-        .then((s) => setRemaining(s.remainingSeconds))
-        .catch(applyAuthError)
+      if (typeof document !== 'undefined' && document.hidden) return
+      checkSession()
     }, POLL_MS)
     return () => clearInterval(id)
-  }, [authed])
+  }, [authed]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // When the local countdown reaches zero, ask the server straight away
+  // rather than leaving "0:00 left" on screen until the next poll.
+  const outOfTime = authed && !auth.unlimited && remaining === 0
+  useEffect(() => {
+    if (outOfTime) checkSession()
+  }, [outOfTime]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Local tick so the chip counts down smoothly between polls; every poll
   // resyncs it, so drift can't accumulate.
@@ -111,8 +158,11 @@ export default function App() {
   }
 
   const mode = screen.startsWith('gym') ? 'gym' : 'lab'
+  screenRef.current = screen
 
   const reset = () => {
+    runIdRef.current += 1
+    returnScreenRef.current = 'start'
     setScreen('start')
     setPrompt(null)
     setAttempt1(null)
@@ -125,6 +175,26 @@ export default function App() {
     setGymComparison(null)
     setProcError(null)
     pairIdRef.current = null
+  }
+
+  const IN_ROUND = ['record1', 'feedback', 'record2', 'processing', 'delta', 'gym-record', 'gym-feedback', 'gym-record2', 'gym-delta']
+  const goHome = () => {
+    const live = IN_ROUND.includes(screen) || (['history', 'about'].includes(screen) && IN_ROUND.includes(returnScreenRef.current))
+    if (live && !window.confirm('Leave this round? Your progress on this story will be lost.')) return
+    reset()
+  }
+  const openSide = (name) => {
+    if (screen !== 'history' && screen !== 'about') returnScreenRef.current = screen
+    setScreen(name)
+  }
+  const closeSide = () => setScreen(returnScreenRef.current || 'start')
+
+  // An analysis result moves the user on only if they are still waiting for
+  // it; if they stepped into History or About meanwhile, it becomes where
+  // "Back" takes them.
+  const showResult = (next) => {
+    if (screenRef.current === 'processing') setScreen(next)
+    else returnScreenRef.current = next
   }
 
   const nextSituation = () => {
@@ -165,7 +235,9 @@ export default function App() {
     return transcribe(input.blob, { attemptNumber })
   }
 
-  async function runLabAnalysis(input, attemptNumber) {
+  // Everything a run needs is captured up front (ctx), so state changes while
+  // a request is in flight — Home, a new round — can't redirect its results.
+  async function runLabAnalysis(input, attemptNumber, ctx) {
     const t = await getTranscript(input, attemptNumber)
     const wordCount = countWords(t.text)
     if (wordCount < 10) return { gibberish: true }
@@ -191,9 +263,9 @@ export default function App() {
       inputMode,
     }
     saveRecord(buildAttemptRecord({
-      pairId: pairIdRef.current,
+      pairId: ctx.pairId,
       attemptNumber,
-      promptId: prompt.id,
+      promptId: ctx.prompt?.id,
       transcript: t.text,
       wordCount,
       fillerEvents: events,
@@ -213,13 +285,13 @@ export default function App() {
     return { analysis }
   }
 
-  async function runGymAnalysis(input, attemptNumber) {
+  async function runGymAnalysis(input, attemptNumber, ctx) {
     const t = await getTranscript(input, attemptNumber)
     const wordCount = countWords(t.text)
     if (wordCount < 10) return { gibberish: true }
     // The question being answered goes along so the coach can tell a strong
     // story that doesn't actually answer it apart from one that does.
-    const fwAnalysis = await analyzeFramework(t.text, framework.id, situation?.text)
+    const fwAnalysis = await analyzeFramework(t.text, ctx.framework.id, ctx.situation?.text)
     const events = detectDeterministic(t.text)
     const durationS = input.seconds ?? null
     const wpm = wordsPerMinute(wordCount, durationS)
@@ -227,8 +299,8 @@ export default function App() {
     const fillerRateValue = fillerRate(events.length, wordCount)
     saveRecord(buildAttemptRecord({
       mode: 'gym',
-      frameworkId: framework.id,
-      situationId: situation.id,
+      frameworkId: ctx.framework.id,
+      situationId: ctx.situation?.id,
       frameworkSteps: fwAnalysis.steps,
       retelling: fwAnalysis.retelling ?? null,
       frameworkFeedbackLine: fwAnalysis.feedback_line ?? null,
@@ -236,9 +308,9 @@ export default function App() {
         framework: { provider: fwAnalysis.provider, prompt_version: fwAnalysis.prompt_version ?? null, model: fwAnalysis.model ?? null },
         stt: t.provider,
       },
-      pairId: pairIdRef.current,
+      pairId: ctx.pairId,
       attemptNumber,
-      promptId: situation.id,
+      promptId: ctx.situation?.id,
       transcript: t.text,
       wordCount,
       fillerEvents: events,
@@ -268,59 +340,80 @@ export default function App() {
   async function analyze(input, attemptNumber, analysisMode = mode) {
     setProcError(null)
     setScreen('processing')
-    lastInputRef.current = { input, attemptNumber, analysisMode }
+    const runId = runIdRef.current
+    const stale = () => runId !== runIdRef.current
+    // Retry of the same input reuses whatever already succeeded: if only the
+    // comparison failed, the retry re-runs just the comparison, instead of
+    // paying for transcription and analysis again.
+    const prev = lastInputRef.current
+    const sameInput = prev && prev.input === input && prev.attemptNumber === attemptNumber
+    const ctx = sameInput && prev.ctx
+      ? prev.ctx
+      : { pairId: pairIdRef.current, prompt, framework, situation, attempt1, gymAttempt1 }
+    lastInputRef.current = { input, attemptNumber, analysisMode, ctx, out: sameInput ? prev.out : null }
     try {
       if (analysisMode === 'gym') {
-        const out = await runGymAnalysis(input, attemptNumber)
+        const out = lastInputRef.current.out || (await runGymAnalysis(input, attemptNumber, ctx))
+        if (stale()) return
         if (out.gibberish) return setProcError({ kind: 'gibberish' })
+        lastInputRef.current.out = out
         if (attemptNumber === 1) {
           setGymAttempt1(out.result)
-          setScreen('gym-feedback')
+          showResult('gym-feedback')
         } else {
           setGymAttempt2(out.result)
           const cmp = await compareAttempts({
             mode: 'gym',
-            transcript1: gymAttempt1.transcript,
+            transcript1: ctx.gymAttempt1.transcript,
             transcript2: out.result.transcript,
-            frameworkId: framework.id,
-            steps1: gymAttempt1.analysis.steps,
+            frameworkId: ctx.framework.id,
+            steps1: ctx.gymAttempt1.analysis.steps,
           })
+          if (stale()) return
           setGymComparison(cmp)
-          annotatePair(pairIdRef.current, { fix_addressed: cmp.fix_addressed, comparison_headline: cmp.headline, comparison: cmp })
-          setScreen('gym-delta')
+          annotatePair(ctx.pairId, { fix_addressed: cmp.fix_addressed, comparison_headline: cmp.headline, comparison: cmp })
+          showResult('gym-delta')
         }
       } else {
-        const out = await runLabAnalysis(input, attemptNumber)
+        const out = lastInputRef.current.out || (await runLabAnalysis(input, attemptNumber, ctx))
+        if (stale()) return
         if (out.gibberish) return setProcError({ kind: 'gibberish' })
+        lastInputRef.current.out = out
         if (attemptNumber === 1) {
           setAttempt1(out.analysis)
-          setScreen('feedback')
+          showResult('feedback')
         } else {
           setAttempt2(out.analysis)
           const cmp = await compareAttempts({
             mode: 'lab',
-            transcript1: attempt1.transcript,
+            transcript1: ctx.attempt1.transcript,
             transcript2: out.analysis.transcript,
-            suggestedFix: attempt1.structure?.suggested_fix,
+            suggestedFix: ctx.attempt1.structure?.suggested_fix,
           })
+          if (stale()) return
           setComparison(cmp)
-          annotatePair(pairIdRef.current, { fix_addressed: cmp.fix_addressed, comparison_headline: cmp.headline, comparison: cmp })
-          setScreen('delta')
+          annotatePair(ctx.pairId, { fix_addressed: cmp.fix_addressed, comparison_headline: cmp.headline, comparison: cmp })
+          showResult('delta')
         }
       }
     } catch (err) {
       console.error(err)
-      // Session expired or allowance used up mid-story: show the sign-in or
-      // locked screen, never sample feedback.
-      if (err?.status === 401) return setAuth(null)
-      if (err?.status === 403) return applyAuthError(err)
+      if (stale()) return
+      // Signed out or out of time mid-analysis: show the sign-in / locked
+      // screen, and leave a "session" error behind it so Retry is there after
+      // signing back in (it used to be an endless spinner).
+      if (err?.status === 401 || err?.status === 403) {
+        setProcError({ kind: 'session' })
+        return err.status === 401 ? setAuth(null) : applyAuthError(err)
+      }
       // Each failure gets an honest state of its own; none of them is ever
       // papered over with demo output.
       const kind =
-        err?.stage === 'stt' ? 'stt'
-          : err?.reason === 'billing' ? 'service'
-            : err?.retryable ? 'busy'
-              : 'llm'
+        err?.status === 429 ? (err.reason === 'daily' ? 'capacity' : 'callcap')
+          : err?.stage === 'stt' ? 'stt'
+            : err?.reason === 'billing' ? 'service'
+              : err?.retryable ? 'busy'
+                : 'llm'
       setProcError({ kind })
     }
   }
@@ -366,7 +459,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
-        <button className="logo" onClick={reset} aria-label="StoryArc home">
+        <button className="logo" onClick={goHome} aria-label="StoryArc home">
           Story<span className="grad-text">Arc</span> <span className="logo-mic">🎙️</span>
         </button>
         {showCrumbs && (
@@ -396,7 +489,7 @@ export default function App() {
                 className={`session-chip ${remaining <= 300 ? 'session-chip--low' : ''}`}
                 title={`${auth.email || 'Signed in'} · time left on this account`}
               >
-                ⏳ {formatRemaining(remaining)} left
+                ⏳ {formatRemaining(remaining)} left{remaining <= 300 ? ' · running low' : ''}
               </span>
             )}
             <button className="link-btn" onClick={signOut}>Log out</button>
@@ -404,6 +497,13 @@ export default function App() {
         )}
       </header>
 
+      {authed && !auth.unlimited && remaining != null && remaining > 0 && remaining <= WARN_AT_SECONDS && (
+        <div className="time-warning" role="status">
+          ⏳ Under a minute left on this account. Finish what you’re doing — when time runs out, anything in progress stops.
+        </div>
+      )}
+
+      <ErrorBoundary onReset={reset}>
       <main>
         {screen === 'start' && (
           <StartScreen onLab={() => setScreen('lab-pick')} onGym={() => setScreen('gym-pick')} />
@@ -473,6 +573,7 @@ export default function App() {
             onBack={reset}
             initialFramework={framework}
             initialSituation={situation}
+            onDraftChange={(fw, sit) => { setFramework(fw); setSituation(sit) }}
           />
         )}
 
@@ -521,20 +622,21 @@ export default function App() {
 
         {screen === 'history' && (
           <HistoryScreen
-            onBack={reset}
+            onBack={closeSide}
             onExport={() => exportSession(loadRecords())}
-            onClear={() => { clearSession(); setScreen('start') }}
+            onClear={() => { clearSession(); reset() }}
           />
         )}
 
-        {screen === 'about' && <AboutScreen onBack={reset} repoUrl={REPO_URL} />}
+        {screen === 'about' && <AboutScreen onBack={closeSide} repoUrl={REPO_URL} />}
       </main>
+      </ErrorBoundary>
 
       <footer className="footer">
         <span>Local-first practice data · your history stays in this browser</span>
         <span className="footer-links">
-          <button className="link-btn" onClick={() => setScreen('about')}>How it’s built</button>
-          <button className="link-btn" onClick={() => setScreen('history')}>History</button>
+          <button className="link-btn" onClick={() => openSide('about')}>How it’s built</button>
+          <button className="link-btn" onClick={() => openSide('history')}>History</button>
           <a className="link-btn" href={REPO_URL} target="_blank" rel="noopener noreferrer">View source ↗</a>
           <button className="link-btn footer-export" onClick={() => exportSession(loadRecords())}>⬇️ Export</button>
         </span>

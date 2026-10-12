@@ -14,6 +14,7 @@ export function LoginGate({ locked = false, lockedEmail = null, onAuthenticated 
   const [error, setError] = useState(null)
   const [lockedNow, setLockedNow] = useState(locked)
   const [lockedAs, setLockedAs] = useState(lockedEmail)
+  const [gsiFailed, setGsiFailed] = useState(false)
   // Read the real allowance from the server rather than hardcoding it, so the
   // copy always matches USAGE_LIMIT_MINUTES in Vercel.
   const [limitMins, setLimitMins] = useState(null)
@@ -33,10 +34,17 @@ export function LoginGate({ locked = false, lockedEmail = null, onAuthenticated 
 
     // The GSI script is async/defer, so it may not have defined window.google
     // by the time this mounts. Poll briefly rather than racing it.
+    // Give up after ~8 s: blockers and some in-app browsers (LinkedIn's) never
+    // load Google's script, which used to leave an empty box with no explanation.
+    const startedAt = Date.now()
     const tryRender = () => {
       if (cancelled) return
       const id = window.google?.accounts?.id
-      if (!id) return setTimeout(tryRender, 120)
+      if (!id) {
+        if (Date.now() - startedAt > 8000) return setGsiFailed(true)
+        return setTimeout(tryRender, 120)
+      }
+      setGsiFailed(false)
       id.initialize({
         client_id: CLIENT_ID,
         callback: async (response) => {
@@ -90,21 +98,34 @@ export function LoginGate({ locked = false, lockedEmail = null, onAuthenticated 
           You can sign in with a different Google account below.
         </p>
       ) : (
-        <p className="screen-sub">
-          StoryArc is a public demo, so each Google account gets a lifetime total of{' '}
-          {limitLabel(limitMins)} — it counts down from the moment you sign in.
-        </p>
+        <>
+          <p className="screen-sub gate-pitch">
+            Tell a short story out loud. StoryArc highlights your filler words, shows whether your
+            story sets a scene, hits a problem and lands an ending — then you tell it again and see
+            exactly what improved.
+          </p>
+          <p className="screen-sub">
+            It’s a free public demo, so each Google account gets a lifetime total of{' '}
+            {limitLabel(limitMins)}, counting from the moment you sign in.
+          </p>
+        </>
       )}
 
       <div className="gate-panel">
         <div ref={buttonRef} className="gate-button" />
+        {gsiFailed && (
+          <p className="gate-error">
+            Google sign-in didn’t load here. If you opened this inside an app (like LinkedIn),
+            open the link in Chrome or Safari instead — or turn off any blocker for this page.
+          </p>
+        )}
         {status === 'signing' && <p className="gate-note">Checking your account…</p>}
         {error && <p className="gate-error">{error}</p>}
       </div>
 
       <p className="gate-fineprint">
-        We store your Google account id and how many seconds you’ve used — nothing else.
-        Recordings are transcribed and analysed by our AI providers but never stored on our servers; your practice history stays in this browser.
+        We store your email address, your Google account ID, and how much time and how many analyses you’ve used — nothing else.
+        Your recording goes to Deepgram (speech-to-text) and the text to Google’s Gemini AI for analysis; StoryArc keeps neither. Your practice history stays in this browser.
       </p>
     </div>
   )

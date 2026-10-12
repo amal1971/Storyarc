@@ -11,13 +11,15 @@ const MOCK_ATTEMPT_1 =
 const MOCK_ATTEMPT_2 =
   'Last month I was supposed to run the demo for our biggest client, and the night before I found the staging environment completely broken — white screen, nothing loading. The account team had already flown in, so there was no moving the meeting. I stayed up rebuilding the seed data and, um, rehearsed a backup path on my laptop. In the morning I ran the whole demo locally instead. It went so smoothly the client never knew, and we closed the renewal two weeks later. Now I always keep a local fallback ready before any big demo.'
 
-import { requireActiveSession } from './_session.js'
+import { requireActiveSession, chargePaidCall } from './_session.js'
 
 async function deepgram(audioBuffer, mimeType) {
   // filler_words=true is the load-bearing param here: Deepgram strips "um"/"uh"
   // by default, which would silently break Tier-A filler detection downstream.
   const res = await fetch(
-    'https://api.deepgram.com/v1/listen?model=nova-3&punctuate=true&filler_words=true&smart_format=true',
+    // mip_opt_out=true: Deepgram's Model Improvement Program may otherwise keep
+    // the audio to train its models — contradicting "StoryArc keeps neither".
+    'https://api.deepgram.com/v1/listen?model=nova-3&punctuate=true&filler_words=true&smart_format=true&mip_opt_out=true',
     {
       method: 'POST',
       headers: {
@@ -111,9 +113,15 @@ export default async function handler(req, res) {
   const session = await requireActiveSession(req, res)
   if (!session) return
   try {
-    const { audioBase64, mimeType = 'audio/webm', attemptNumber } = req.body || {}
+    const { audioBase64, attemptNumber } = req.body || {}
+    // Only a short audio/* string is ever a legitimate content type here.
+    const rawMime = req.body?.mimeType
+    const mimeType = typeof rawMime === 'string' && rawMime.length <= 100 && rawMime.startsWith('audio/') ? rawMime : 'audio/webm'
     const provider = (process.env.STT_PROVIDER || 'mock').toLowerCase()
 
+    if (audioBase64 != null && typeof audioBase64 !== 'string') {
+      return res.status(400).json({ error: 'audio_must_be_base64_text', retryable: false })
+    }
     if (provider !== 'mock' && !audioBase64) {
       // A real provider is configured: an empty upload is a client bug, not a
       // reason to hand back the canned demo story as if it were their recording.
@@ -124,6 +132,7 @@ export default async function handler(req, res) {
       return res.status(200).json({ text, provider: 'mock' })
     }
 
+    if (!(await chargePaidCall(session, res))) return
     const audioBuffer = Buffer.from(audioBase64, 'base64')
     let out
     if (provider === 'deepgram') out = await deepgram(audioBuffer, mimeType)

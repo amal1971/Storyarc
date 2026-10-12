@@ -7,6 +7,7 @@ const MIN_TYPED_WORDS = 40
 // About a three-minute telling — the same ceiling as the recording hard stop.
 // The server enforces a matching limit, so this is a courtesy, not the guard.
 const MAX_TYPED_WORDS = 600
+const MAX_TYPED_CHARS = 6000 // matches the server limit (api/_limits.js)
 
 // Used for lab attempt 1, the lab retry (attempt 2), and both gym rounds.
 // In retry mode the screen is deliberately bare: prompt + record button only —
@@ -40,10 +41,11 @@ export function RecordScreen({ prompt, attemptNumber, onSubmit, onCancel, scaffo
     [],
   )
 
-  // Space starts/stops recording — unless the user is typing.
+  // Space starts/stops recording — unless focus is on something Space already
+  // means something for (typing, or a focused button/link/select).
   useEffect(() => {
     const onKey = (e) => {
-      if (e.code !== 'Space' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return
+      if (e.code !== 'Space' || ['TEXTAREA', 'INPUT', 'BUTTON', 'A', 'SELECT'].includes(e.target.tagName)) return
       if (rec.status === 'recording') { e.preventDefault(); rec.stop() }
       else if (rec.status === 'idle' && !showText) { e.preventDefault(); rec.start() }
     }
@@ -63,7 +65,7 @@ export function RecordScreen({ prompt, attemptNumber, onSubmit, onCancel, scaffo
   }
 
   const submitTyped = () => {
-    if (typedWords < MIN_TYPED_WORDS || typedWords > MAX_TYPED_WORDS) return
+    if (typedWords < MIN_TYPED_WORDS || typedWords > MAX_TYPED_WORDS || typed.length > MAX_TYPED_CHARS) return
     onSubmit({ text: typed.trim(), inputMode: 'text' })
   }
 
@@ -84,13 +86,13 @@ export function RecordScreen({ prompt, attemptNumber, onSubmit, onCancel, scaffo
               {typedWords} words
               {typedWords < MIN_TYPED_WORDS
                 ? ` · ${MIN_TYPED_WORDS - typedWords} more to analyze`
-                : typedWords > MAX_TYPED_WORDS
-                  ? ` · ${typedWords - MAX_TYPED_WORDS} over the ${MAX_TYPED_WORDS}-word limit — trim it to about three minutes of talking`
+                : typedWords > MAX_TYPED_WORDS || typed.length > MAX_TYPED_CHARS
+                  ? ` · over the ${MAX_TYPED_WORDS}-word limit — trim it to about three minutes of talking`
                   : ' · ready'}
             </span>
             <button className="link-btn" onClick={() => setShowText(false)}>Use the mic instead</button>
           </div>
-          <button className="btn btn-primary" onClick={submitTyped} disabled={typedWords < MIN_TYPED_WORDS || typedWords > MAX_TYPED_WORDS}>
+          <button className="btn btn-primary" onClick={submitTyped} disabled={typedWords < MIN_TYPED_WORDS || typedWords > MAX_TYPED_WORDS || typed.length > MAX_TYPED_CHARS}>
             ✨ Analyze what I typed
           </button>
         </>
@@ -196,7 +198,7 @@ export function RecordScreen({ prompt, attemptNumber, onSubmit, onCancel, scaffo
         <div className="rec-live">
           {!showText && (
             <>
-              <button className="record-btn" onClick={rec.start} aria-label="Start recording">🎙️</button>
+              <button className="record-btn" onClick={rec.start} disabled={rec.status === 'requesting'} aria-label="Start recording">🎙️</button>
               <p className="rec-hint">
                 {scaffold
                   ? `Aim for 1–2 minutes. Ride the beats: ${scaffold.steps.map((s) => s.label).join(' → ')}.`

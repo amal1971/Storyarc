@@ -37,7 +37,10 @@ export default async function handler(req, res) {
   if (!sub) return res.status(401).json({ error: 'invalid_credential' })
 
   try {
-    const admin = isAdminEmail(email)
+    // The exemption is only granted to a Google-verified address. An account
+    // can carry an unverified email it doesn't own; that must not unlock
+    // unlimited paid usage.
+    const admin = payload.email_verified === true && isAdminEmail(email)
     const prior = await getUsage(sub)
     const usedBefore = prior?.usedSeconds || 0
     if (!admin && (prior?.exhausted || usedBefore >= limitSeconds())) {
@@ -46,7 +49,7 @@ export default async function handler(req, res) {
 
     // Write the email index up front so a reset is possible even for an
     // account that never reaches a checkpoint.
-    await saveUsage(sub, { email, usedSeconds: usedBefore, exhausted: false })
+    await saveUsage(sub, { email, usedSeconds: usedBefore, exhausted: false, indexEmail: true })
     setSessionCookie(res, { sub, email, sessionStart: nowSeconds(), usedBefore, unlimited: admin })
     return res.status(200).json({
       email,

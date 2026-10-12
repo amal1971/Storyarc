@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { FRAMEWORKS, randomSituation } from '../lib/frameworks.js'
 
 // Ordered by what the speaker needs to know, not by what the app knows:
@@ -8,9 +8,12 @@ import { FRAMEWORKS, randomSituation } from '../lib/frameworks.js'
 // Previously the situation sat fifth, below a large framework card, styled the
 // same as everything else — so the one thing you actually have to answer was
 // the hardest thing to find.
-export function GymPickScreen({ onStart, onBack, initialFramework, initialSituation }) {
+export function GymPickScreen({ onStart, onBack, initialFramework, initialSituation, onDraftChange }) {
   const [framework, setFramework] = useState(initialFramework || FRAMEWORKS[0])
   const [situation, setSituation] = useState(initialSituation || randomSituation())
+  // Report the current choice up, so a trip to History or "How it's built"
+  // comes back to the same prompt instead of a freshly shuffled one.
+  useEffect(() => { onDraftChange?.(framework, situation) }, [framework, situation]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="screen gym-pick">

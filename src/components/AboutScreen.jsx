@@ -93,7 +93,7 @@ export function AboutScreen({ onBack, repoUrl }) {
             ))}
           </div>
           <p style={{ marginTop: 10 }}>
-            Your practice history stays in your own browser — StoryArc has no database of your stories. To analyse a telling, the recording goes to Deepgram (speech-to-text) and the text to Google’s Gemini AI; StoryArc keeps neither. You can download or delete your history any time from <em>History</em>. Signing in only exists to give everyone a fair share of time on this free demo: we store your Google account ID and how many seconds you’ve used, nothing else.
+            Your practice history stays in your own browser — StoryArc has no database of your stories. To analyse a telling, the recording goes to Deepgram (speech-to-text) and the text to Google’s Gemini AI; StoryArc keeps neither. You can download or delete your history any time from <em>History</em>. Signing in only exists to give everyone a fair share of time on this free demo: we store your email address, your Google account ID and how many seconds and analyses you’ve used, nothing else.
           </p>
         </div>
       </div>

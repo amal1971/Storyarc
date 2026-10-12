@@ -43,11 +43,28 @@ export async function getUsage(sub) {
   return typeof raw === 'string' ? JSON.parse(raw) : raw
 }
 
-export async function saveUsage(sub, { email, usedSeconds, exhausted = false }) {
+// `indexEmail` writes the email → sub lookup. Only login needs it (the index
+// never changes afterwards); skipping it on every 15–30 s checkpoint halves
+// the Redis commands the countdown costs.
+export async function saveUsage(sub, { email, usedSeconds, exhausted = false, indexEmail = false }) {
   const record = { sub, email: email || null, usedSeconds, exhausted, updatedAt: Date.now() }
   await redis().set(usageKey(sub), record)
-  if (email) await redis().set(emailKey(email), sub)
+  if (email && indexEmail) await redis().set(emailKey(email), sub)
   return record
+}
+
+// Paid-call counters: one lifetime count per account and one per UTC day for
+// the whole app. Time is not enough of a cap on its own — a script can fire
+// many calls a second inside the allowance.
+const callsKey = (sub) => `storyarc:calls:${sub}`
+const dayKey = () => `storyarc:calls:day:${new Date().toISOString().slice(0, 10)}`
+
+export async function countPaidCall(sub) {
+  const r = redis()
+  const day = dayKey()
+  const [account, today] = await Promise.all([r.incr(callsKey(sub)), r.incr(day)])
+  if (today === 1) await r.expire(day, 60 * 60 * 48)
+  return { account, today }
 }
 
 export async function markExhausted(sub, email) {
@@ -65,5 +82,6 @@ export async function subForEmail(email) {
 
 export async function deleteUsage(sub, email) {
   await redis().del(usageKey(sub))
+  await redis().del(callsKey(sub))
   if (email) await redis().del(emailKey(email))
 }

@@ -34,6 +34,7 @@ async function serverTranscribe(audioBlob, options = {}) {
     throw sttError(`transcribe failed: ${res.status} ${info.error || ''}`.trim(), {
       status: res.status,
       retryable: info.retryable !== false,
+      reason: info.reason || null,
     })
   }
   const data = await res.json()
@@ -41,11 +42,12 @@ async function serverTranscribe(audioBlob, options = {}) {
   return data
 }
 
-function sttError(message, { status, retryable }) {
+function sttError(message, { status, retryable, reason = null }) {
   const err = new Error(message)
   err.stage = 'stt'
   err.status = status
   err.retryable = retryable
+  err.reason = reason
   return err
 }
 

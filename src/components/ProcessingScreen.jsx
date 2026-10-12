@@ -24,13 +24,16 @@ export function ProcessingScreen({ error, onRetry, onReRecord, variant = 'lab' }
   }, [error, STEPS.length])
 
   if (error) {
-    const EMOJI = { gibberish: '🤔', busy: '⏳', llm: '📡', stt: '🎧', service: '🛠️' }
+    const EMOJI = { gibberish: '🤔', busy: '⏳', llm: '📡', stt: '🎧', service: '🛠️', session: '🔑', capacity: '🌙', callcap: '✋' }
     const TITLE = {
       gibberish: 'We couldn’t make out a story',
       busy: 'The model is busy right now',
       llm: 'Something hiccuped',
       stt: 'We couldn’t transcribe that',
       service: 'StoryArc is taking a short break',
+      session: 'You were signed out before we finished',
+      capacity: 'StoryArc is full for today',
+      callcap: 'This account has used its analyses',
     }
     const BODY = {
       gibberish: 'The recording came back mostly empty. Mic too far away, maybe? Give it another go.',
@@ -40,6 +43,9 @@ export function ProcessingScreen({ error, onRetry, onReRecord, variant = 'lab' }
       llm: 'The analysis call didn’t come back. Retry, or re-record if it keeps happening.',
       stt: 'The transcription service didn’t answer. Your recording is still here — hit retry, or re-record if it keeps happening.',
       service: 'The analysis service needs attention on our side, so we can’t analyse stories right now. Please try again a little later — we won’t show you made-up feedback in the meantime.',
+      session: 'Your story is still here. Sign in again, then hit retry to finish the analysis.',
+      capacity: 'This free demo has a daily limit and today’s is used up. Please come back tomorrow.',
+      callcap: 'Each account gets a fixed number of analyses on this free demo, and this one has used them all.',
     }
     return (
       <div className="screen processing-screen">
@@ -47,7 +53,7 @@ export function ProcessingScreen({ error, onRetry, onReRecord, variant = 'lab' }
           <div className="big-emoji">{EMOJI[error.kind] || '📡'}</div>
           <h2>{TITLE[error.kind] || TITLE.llm}</h2>
           <p className="muted">{BODY[error.kind] || BODY.llm}</p>
-          {error.kind !== 'gibberish' && error.kind !== 'service' && (
+          {!['gibberish', 'service', 'capacity', 'callcap'].includes(error.kind) && (
             <button className="btn btn-primary" onClick={onRetry}>Retry analysis</button>
           )}
           <button className={error.kind === 'gibberish' || error.kind === 'service' ? 'btn btn-primary' : 'link-btn'} onClick={onReRecord}>

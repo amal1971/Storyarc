@@ -9,8 +9,8 @@ import { geminiJSON, geminiConfigured, sendGeminiError, GEMINI_MODEL } from './_
 // so a saved output can be traced back to the prompt that produced it.
 const COMPARE_PROMPT_VERSION = 'compare-2026-07-24'
 import { getFramework } from '../src/lib/frameworks.js'
-import { requireActiveSession } from './_session.js'
-import { rejectOversize } from './_limits.js'
+import { requireActiveSession, chargePaidCall } from './_session.js'
+import { rejectOversize, cleanSuggestedFix, cleanSteps } from './_limits.js'
 
 const SHARED_RULES = `Rules:
 - Name concrete differences. Quote or point at the actual words that appeared, disappeared, or moved between the two tellings. A sentence that could describe any two recordings is a failure.
@@ -73,20 +73,24 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'transcript1 and transcript2 required' })
   }
   if (rejectOversize(res, transcript1, transcript2)) return
+  const fix = cleanSuggestedFix(suggestedFix)
+  const steps = cleanSteps(steps1)
+  if (!fix.ok || !steps.ok) return res.status(400).json({ error: 'invalid_input', retryable: false, configured: true })
 
   let prompt
   if (mode === 'gym') {
     const fw = getFramework(frameworkId)
     if (!fw) return res.status(400).json({ error: 'valid frameworkId required for gym mode' })
-    prompt = GYM_PROMPT({ transcript1, transcript2, fw, steps1 })
+    prompt = GYM_PROMPT({ transcript1, transcript2, fw, steps1: steps.value })
   } else {
-    prompt = LAB_PROMPT({ transcript1, transcript2, suggestedFix })
+    prompt = LAB_PROMPT({ transcript1, transcript2, suggestedFix: fix.value })
   }
 
   if (!geminiConfigured()) {
     // Zero-key demo mode: the client's deterministic mock is the intended path.
     return res.status(503).json({ error: 'not_configured', retryable: false, configured: false })
   }
+  if (!(await chargePaidCall(session, res))) return
 
   try {
     const data = await geminiJSON(prompt, { temperature: 0.5 })

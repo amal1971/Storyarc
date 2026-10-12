@@ -656,3 +656,10 @@ body {
    without being alarming. */
 .session-chip--low { background: var(--bg-spot-1); }
 .session-box .link-btn { font-size: 0.8rem; padding: 0; }
+
+/* Last-minute warning under the header — informational, not alarming. */
+.time-warning {
+  max-width: 720px; margin: 8px auto 0; padding: 10px 14px; border: 2px solid var(--ink);
+  border-radius: 14px; background: var(--bg-spot-1); font-weight: 600; font-size: 0.9rem; text-align: center;
+}
+.gate-pitch { font-weight: 500; }

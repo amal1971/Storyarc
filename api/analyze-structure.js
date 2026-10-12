@@ -2,7 +2,7 @@
 // NOTE: replace PROMPT with the paste-ready version from
 // StoryArc_Task1_Rubrics_Prompts_EvalSet.md before Milestone 2 sign-off.
 import { geminiJSON, geminiConfigured, sendGeminiError, GEMINI_MODEL } from './_gemini.js'
-import { requireActiveSession } from './_session.js'
+import { requireActiveSession, chargePaidCall } from './_session.js'
 import { rejectOversize } from './_limits.js'
 
 // Bump when the prompt below changes materially. Stored with every result
@@ -44,6 +44,7 @@ export default async function handler(req, res) {
     // Zero-key demo mode: the client's deterministic mock is the intended path.
     return res.status(503).json({ error: 'not_configured', retryable: false, configured: false })
   }
+  if (!(await chargePaidCall(session, res))) return
 
   try {
     let data = await geminiJSON(PROMPT(transcript), { temperature: 0.4 })

@@ -33,7 +33,16 @@ export function useRecorder({ onStop }) {
     setBands(ZERO_BANDS)
   }
 
-  useEffect(() => cleanup, [])
+  // Leaving the screen mid-recording must not submit the take: stopping the
+  // tracks makes MediaRecorder fire onstop, which used to send a paid analysis
+  // for a story the user walked away from.
+  useEffect(() => () => {
+    if (mediaRef.current) mediaRef.current.onstop = null
+    if (mediaRef.current?.state === 'recording') mediaRef.current.stop()
+    cleanup()
+  }, [])
+
+  const busyRef = useRef(false)
 
   const startMeter = (stream) => {
     const Ctx = window.AudioContext || window.webkitAudioContext
@@ -68,6 +77,10 @@ export function useRecorder({ onStop }) {
   }
 
   const start = async () => {
+    // A double-click used to open two microphone streams and two timers (the
+    // clock then ran at double speed). Ignore a start while one is in flight.
+    if (busyRef.current) return
+    busyRef.current = true
     setStatus('requesting')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -78,6 +91,7 @@ export function useRecorder({ onStop }) {
       rec.ondataavailable = (e) => e.data.size && chunksRef.current.push(e.data)
       rec.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: rec.mimeType || 'audio/webm' })
+        busyRef.current = false
         cleanup()
         setStatus('stopped')
         onStop?.(blob, elapsedRef.current)
@@ -96,6 +110,7 @@ export function useRecorder({ onStop }) {
         })
       }, 1000)
     } catch (err) {
+      busyRef.current = false
       cleanup()
       setStatus(err?.name === 'NotAllowedError' ? 'denied' : 'error')
     }
@@ -110,6 +125,7 @@ export function useRecorder({ onStop }) {
       mediaRef.current.onstop = null
       mediaRef.current.stop()
     }
+    busyRef.current = false
     cleanup()
     setStatus('idle')
     setElapsed(0)

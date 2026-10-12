@@ -62,7 +62,7 @@ export function HistoryScreen({ onBack, onExport, onClear }) {
     <div className="screen">
       <h2 className="screen-title">Your rounds 📚</h2>
       <p className="screen-sub">
-        Everything here lives in this browser only. Export it, or clear it — it never left your device.
+        Your rounds are saved only in this browser. Export them or clear them any time. (To analyse each telling, the recording went to Deepgram and the text to Google’s Gemini AI; neither is stored by StoryArc.)
       </p>
 
       {pairs.length === 0 ? (

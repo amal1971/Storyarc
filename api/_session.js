@@ -7,7 +7,7 @@
 // checkpoints. Same instinct as the derived signals elsewhere in this app —
 // if it can be computed exactly, don't go ask something else for it.
 import crypto from 'node:crypto'
-import { markExhausted, saveUsage } from './_usage.js'
+import { markExhausted, saveUsage, countPaidCall } from './_usage.js'
 
 const COOKIE_NAME = 'storyarc_session'
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30
@@ -114,7 +114,10 @@ export function computeRemainingSeconds(session) {
 // that fails loudly when the store is missing (see auth-google.js).
 export async function checkpointUsage(session) {
   const usedSeconds = totalUsedSeconds(session)
-  const exhausted = !session.unlimited && usedSeconds >= limitSeconds()
+  // The uncapped operator account has nothing to count; writing it every
+  // poll only spends Redis commands.
+  if (session.unlimited) return { ...session, sessionStart: nowSeconds(), usedBefore: usedSeconds }
+  const exhausted = usedSeconds >= limitSeconds()
   try {
     await saveUsage(session.sub, { email: session.email, usedSeconds, exhausted })
   } catch (err) {
@@ -139,7 +142,10 @@ export async function requireActiveSession(req, res) {
     return null
   }
 
-  if (isAdminEmail(session.email)) return { ...session, unlimited: true }
+  // Both must hold: the cookie says this login was granted the exemption (only
+  // for a Google-verified admin email, see auth-google.js) AND the email is
+  // still on the list — removing it from ADMIN_EMAILS revokes it immediately.
+  if (session.unlimited && isAdminEmail(session.email)) return { ...session, unlimited: true }
 
   if (computeRemainingSeconds(session) <= 0) {
     // Best-effort: the lockout is already decided by the cookie's own math, so
@@ -154,5 +160,30 @@ export async function requireActiveSession(req, res) {
     return null
   }
 
-  return session
+  return { ...session, unlimited: false }
+}
+
+export const callsPerAccount = () => Number(process.env.CALLS_PER_ACCOUNT || 60)
+export const dailyCallCap = () => Number(process.env.DAILY_CALL_CAP || 500)
+
+// Second guard for the five paid endpoints, called right before the paid work:
+// a lifetime ceiling on calls per account and a daily ceiling for the whole
+// app, so neither a script inside one allowance nor a flood of fresh accounts
+// can drain the prepaid model credit. The operator account and AUTH_ENABLED=false
+// are exempt. A Redis failure lets the call through (logged) — the same
+// "don't punish users for our storage blip" rule as the checkpoints.
+// Returns true when the call may proceed; otherwise writes a 429 and returns false.
+export async function chargePaidCall(session, res) {
+  if (!authEnabled() || session?.unlimited || !session?.sub) return true
+  let counts
+  try {
+    counts = await countPaidCall(session.sub)
+  } catch (err) {
+    console.warn('[session] call counter unavailable, allowing call:', err.message)
+    return true
+  }
+  const reason = counts.today > dailyCallCap() ? 'daily' : counts.account > callsPerAccount() ? 'account' : null
+  if (!reason) return true
+  res.status(429).json({ error: 'call_limit', reason, retryable: false, configured: true })
+  return false
 }

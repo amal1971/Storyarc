@@ -3,7 +3,7 @@
 // added in src/lib/frameworks.js work here with zero endpoint changes.
 import { geminiJSON, geminiConfigured, sendGeminiError, GEMINI_MODEL } from './_gemini.js'
 import { getFramework } from '../src/lib/frameworks.js'
-import { requireActiveSession } from './_session.js'
+import { requireActiveSession, chargePaidCall } from './_session.js'
 import { rejectOversize } from './_limits.js'
 
 // Bump when the prompt below changes materially. Stored with every result
@@ -121,6 +121,7 @@ export default async function handler(req, res) {
     // Zero-key demo mode: the client's deterministic mock is the intended path.
     return res.status(503).json({ error: 'not_configured', retryable: false, configured: false })
   }
+  if (!(await chargePaidCall(session, res))) return
   const sit = typeof situation === 'string' ? situation.slice(0, MAX_SITUATION_CHARS) : ''
 
   try {
