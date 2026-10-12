@@ -1,6 +1,7 @@
 import { Component, useEffect, useRef, useState } from 'react'
 import { StartScreen } from './components/StartScreen.jsx'
 import { LoginGate } from './components/LoginGate.jsx'
+import { Tour } from './components/Tour.jsx'
 import { LabPickScreen } from './components/LabPickScreen.jsx'
 import { RecordScreen } from './components/RecordScreen.jsx'
 import { ProcessingScreen } from './components/ProcessingScreen.jsx'
@@ -19,6 +20,8 @@ import {
   newPairId, buildAttemptRecord, saveRecord, loadRecords, exportSession, annotatePair, clearSession,
 } from './lib/session.js'
 import { fetchSessionStatus, logout } from './lib/auth.js'
+
+const TOUR_KEY = 'storyarc_tour_seen_v1'
 
 // Each poll writes the elapsed time to Redis, so it is a real cost: 30 s is
 // plenty for a countdown, and hidden tabs skip it (the signed cookie keeps the
@@ -86,6 +89,9 @@ export default function App() {
   // 'locked' → this account's lifetime allowance is spent; 'disabled' →
   // AUTH_ENABLED=false, the app behaves exactly as it did before the gate.
   const [auth, setAuth] = useState('checking')
+  // First-sign-in tour: shown once per browser, replayable from the footer.
+  const [tourOpen, setTourOpen] = useState(false)
+  const [limitMins, setLimitMins] = useState(null)
   const [lockedEmail, setLockedEmail] = useState(null)
   const [remaining, setRemaining] = useState(null)
 
@@ -195,6 +201,56 @@ export default function App() {
     setScreen(name)
   }
   const closeSide = () => setScreen(returnScreenRef.current || 'start')
+
+  // Tour: opens by itself the first time a signed-in visitor lands on the
+  // start screen, and again whenever they ask via the footer link.
+  const signedIn = authed || auth === 'disabled'
+  useEffect(() => {
+    if (!signedIn || screen !== 'start' || tourOpen) return
+    let seen = true
+    try { seen = localStorage.getItem(TOUR_KEY) === '1' } catch { /* storage blocked: don't nag */ }
+    if (!seen) setTourOpen(true)
+  }, [signedIn, screen]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    fetch('/api/health')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((h) => { if (h?.usageLimitMinutes > 0) setLimitMins(h.usageLimitMinutes) })
+      .catch(() => {})
+  }, [])
+  const closeTour = () => {
+    try { localStorage.setItem(TOUR_KEY, '1') } catch { /* fine */ }
+    setTourOpen(false)
+  }
+  const capped = authed && !auth.unlimited
+  const tourSteps = [
+    {
+      target: null,
+      title: 'Welcome to StoryArc 👋',
+      body: capped && limitMins
+        ? `A 20-second look around before you start. Your ${limitMins} minutes are already counting, so we’ll keep it short.`
+        : 'A 20-second look around before you start.',
+    },
+    {
+      target: '.mode-card--lab',
+      title: 'Story Lab — tell it, then tell it better',
+      body: 'Pick a prompt or bring your own story and tell it out loud. You’ll see your filler words highlighted and get one thing to fix. Then tell it again from memory and see exactly what changed.',
+    },
+    {
+      target: '.mode-card--gym',
+      title: 'Story Gym — practise a shape',
+      body: 'Answer a real prompt, like an interview question, using a storytelling shape: And–But–Therefore, Situation–Complication–Resolution, or STAR. See which beats landed, then hear your own story retold in that shape.',
+    },
+    {
+      target: '[data-tour="peek"]',
+      title: 'Curious first? Peek at a sample',
+      body: 'See finished feedback on an example story before you record your own.',
+    },
+    ...(capped ? [{
+      target: '.session-chip',
+      title: 'Your time, counting down',
+      body: `${limitMins ? `${limitMins} minutes` : 'Your time'} in total on this account, counting from sign-in. One round takes about 3, so there’s room for a few.`,
+    }] : []),
+  ]
 
   // An analysis result moves the user on only if they are still waiting for
   // it; if they stepped into History or About meanwhile, it becomes where
@@ -643,9 +699,14 @@ export default function App() {
       </main>
       </ErrorBoundary>
 
+      {tourOpen && screen === 'start' && <Tour steps={tourSteps} onClose={closeTour} />}
+
       <footer className="footer">
         <span>Local-first practice data · your history stays in this browser</span>
         <span className="footer-links">
+          {screen === 'start' && (
+            <button className="link-btn" onClick={() => setTourOpen(true)}>Show me around</button>
+          )}
           <button className="link-btn" onClick={() => openSide('about')}>How it’s built</button>
           <button className="link-btn" onClick={() => openSide('history')}>History</button>
           <a className="link-btn" href={REPO_URL} target="_blank" rel="noopener noreferrer">View source ↗</a>

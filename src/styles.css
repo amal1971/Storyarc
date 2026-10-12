@@ -663,3 +663,42 @@ body {
   border-radius: 14px; background: var(--bg-spot-1); font-weight: 600; font-size: 0.9rem; text-align: center;
 }
 .gate-pitch { font-weight: 500; }
+
+/* ---------- First-sign-in spotlight tour (src/components/Tour.jsx) ---------- */
+.tour { position: fixed; inset: 0; z-index: 1000; }
+.tour-blocker { position: fixed; inset: 0; }
+.tour-hole {
+  position: fixed; border-radius: 22px; pointer-events: none;
+  box-shadow: 0 0 0 9999px rgba(36, 27, 53, 0.62);
+  transition: left .4s cubic-bezier(.2,.8,.2,1), top .4s cubic-bezier(.2,.8,.2,1),
+              width .4s cubic-bezier(.2,.8,.2,1), height .4s cubic-bezier(.2,.8,.2,1);
+}
+.tour-hole::after { content: ''; position: absolute; inset: -4px; border: 3px dashed #fff; border-radius: 26px; opacity: .9; }
+.tour-hole--none::after { display: none; }
+.tour-tip {
+  position: fixed; background: var(--card); border: 2.5px solid var(--ink); border-radius: 18px;
+  box-shadow: var(--shadow); padding: 16px 18px 14px; color: var(--ink);
+  transition: left .4s cubic-bezier(.2,.8,.2,1), top .4s cubic-bezier(.2,.8,.2,1);
+}
+.tour-step { font-size: .72rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--violet); }
+.tour-title { font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; line-height: 1.2; margin: 4px 0 6px; }
+.tour-body { margin: 0; font-size: .92rem; line-height: 1.45; }
+.tour-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.tour-dots { display: flex; gap: 6px; }
+.tour-dots span { width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--ink); }
+.tour-dots span.on { background: var(--ink); }
+.tour-btns { display: flex; align-items: center; gap: 12px; }
+.tour-link { background: none; border: 0; padding: 4px 2px; font: 600 .85rem var(--font-body); color: var(--ink); opacity: .75; text-decoration: underline; cursor: pointer; }
+.tour-primary {
+  border: 2.5px solid var(--ink); border-radius: 999px; padding: 9px 18px; cursor: pointer;
+  font: 700 .9rem var(--font-body); color: #fff; box-shadow: var(--shadow-sm);
+  background: linear-gradient(90deg, var(--coral-btn), var(--orange-btn));
+}
+.tour-primary:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--ink); }
+.tour-arrow {
+  position: absolute; top: -10px; width: 16px; height: 16px; background: var(--card);
+  border-left: 2.5px solid var(--ink); border-top: 2.5px solid var(--ink); transform: rotate(45deg);
+}
+.tour-arrow--down { top: auto; bottom: -10px; transform: rotate(225deg); }
+.tour--still .tour-hole, .tour--still .tour-tip { transition: none; }
+@media (prefers-reduced-motion: reduce) { .tour-hole, .tour-tip { transition: none; } }

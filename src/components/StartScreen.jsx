@@ -57,7 +57,7 @@ export function StartScreen({ onLab, onGym }) {
         </button>
       </div>
 
-      <button className="link-btn" onClick={() => setShowSample(true)}>
+      <button className="link-btn" data-tour="peek" onClick={() => setShowSample(true)}>
         👀 Curious what feedback looks like? Peek at a sample
       </button>
 
