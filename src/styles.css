@@ -565,6 +565,8 @@ body {
 .about-section p { margin: 0 0 6px; line-height: 1.6; }
 .about-section .link-btn { font-size: 0.85rem; padding: 0; }
 .about-stack { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.about-steps { margin: 4px 0 0; padding-left: 22px; }
+.about-steps li { margin: 0 0 8px; line-height: 1.55; }
 .footer-links { display: flex; gap: 14px; flex-wrap: wrap; justify-content: center; }
 .tell-line--flat { background: var(--card); border-color: var(--muted); }
 

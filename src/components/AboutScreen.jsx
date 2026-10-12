@@ -1,6 +1,6 @@
-// "How it's built" — the engineering that is otherwise invisible to a visitor.
-// Every claim links to the line of code that makes it true. Plain English,
-// aimed at the person deciding whether to have a conversation with the author.
+// "How it's built" — the engineering that is otherwise invisible to a visitor,
+// written for someone who has never written code. Every claim still links to
+// the code that makes it true, for readers who want to check.
 
 function code(repoUrl, path) {
   return `${repoUrl}/blob/main/${path}`
@@ -10,45 +10,45 @@ export function AboutScreen({ onBack, repoUrl }) {
   const sections = [
     {
       emoji: '🔒',
-      title: 'Nothing the AI says about your words is trusted until code checks it.',
+      title: 'It never puts words in your mouth.',
       body:
-        'Whenever the model quotes your story back as evidence, that quote must be a verbatim substring of your transcript — at most twelve words — verified in JavaScript after the call returns. If it isn’t, the quote is dropped and never shown. The model is retried once at a stricter setting first. You will not see a fabricated quote from this app.',
-      links: [['evidenceIsValid()', 'src/lib/analyze.js'], ['the retry', 'api/analyze-structure.js']],
+        'When StoryArc quotes your story back to you, a simple check confirms those exact words really are in what you said. If they aren’t, the quote is thrown away before you see it. The AI gets one second try first, but either way you will never see a made-up quote.',
+      links: [['the quote check', 'src/lib/analyze.js'], ['the second try', 'api/analyze-structure.js']],
     },
     {
       emoji: '🧭',
-      title: 'Filler detection is two-tier on purpose.',
+      title: 'Simple rules first. AI only where it takes judgement.',
       body:
-        'A deterministic pass catches the unambiguous cases — “um”, “kind of”, back-to-back repetitions like “and we, and we” — instantly, offline, for free. The model is only asked about the contextual ones, where “like” might be a verb or a hedge. When the two disagree about the same span, the deterministic tier wins. Cheap where certainty is possible; the model only where judgment is needed.',
-      links: [['fillers.js', 'src/lib/fillers.js'], ['the Tier-B prompt', 'api/analyze-fillers.js']],
+        'Obvious filler words like “um” or “kind of”, and stumbles like “we, we”, are caught by plain rules — instantly and for free. The AI is only asked about words that depend on context: “I like it” is fine, but “it was, like, huge” is a filler. If the two ever disagree, the simple rules win.',
+      links: [['the filler rules', 'src/lib/fillers.js'], ['the AI’s instructions', 'api/analyze-fillers.js']],
     },
     {
       emoji: '🧪',
-      title: 'When a service fails, the app tells you — it never fakes a result.',
+      title: 'If something breaks, it tells you — it never fakes it.',
       body:
-        'Every analysis carries a provider tag. If transcription or any model call degrades to built-in sample data (a key is missing, a rate limit hit, the network dropped), a badge says exactly which part. A confident-looking fake result is treated as worse than an honest gap. This is also why the whole app runs with zero API keys.',
-      links: [['the mock fallbacks', 'src/lib/analyze.js'], ['the badge', 'src/components/FeedbackScreen.jsx']],
+        'If the transcription service or the AI is down, out of credit or busy, you get a clear “try again” message — never feedback that was made up to fill the gap. Built-in sample data only appears in demo mode, when no AI is connected at all, and it is labelled as a sample.',
+      links: [['how failures are handled', 'src/lib/analyze.js'], ['the error screens', 'src/components/ProcessingScreen.jsx']],
     },
     {
       emoji: '🔁',
-      title: 'The coach checks its own homework.',
+      title: 'It checks whether its own advice worked.',
       body:
-        'Your second telling isn’t analysed in isolation. One call reads both tellings side by side together with the exact advice you were given after the first — and must say whether you acted on it, including “no”. It also names what concretely changed, in your words. That’s the difference between two report cards and a coach.',
-      links: [['compare-attempts.js', 'api/compare-attempts.js']],
+        'Your second telling isn’t judged on its own. The AI reads both tellings side by side, together with the exact tip it gave you after the first one, and says plainly whether you used it — including “not this round”. Then it points to what actually changed, in your own words.',
+      links: [['the comparison', 'api/compare-attempts.js']],
     },
     {
-      emoji: '🌡️',
-      title: 'Temperature is a design decision, not a default.',
+      emoji: '🎚️',
+      title: 'Strict when judging, natural when writing.',
       body:
-        'Pure judgments (is there an ending? which word is a filler?) run at temperature 0. Anything that writes prose — the retelling, the comparison — runs higher, because temperature 0 literally selects the most probable, which for writing means the most generic. Honesty comes from the substring checks above, not from a low temperature.',
-      links: [['_gemini.js', 'api/_gemini.js']],
+        'The filler check runs with the AI’s creativity turned all the way down, so the same story always gets the same answer. Parts that also write sentences for you — the feedback, the retelling, the comparison — get a little more freedom, so they read like a person rather than a form letter. What keeps them honest is the quote check above, not the setting.',
+      links: [['the AI settings', 'api/_gemini.js']],
     },
     {
       emoji: '🧩',
-      title: 'Frameworks are data, not code.',
+      title: 'Each storytelling shape is one recipe card.',
       body:
-        'ABT, SCR and STAR are entries in one registry. The picker, the beat-by-beat verdicts, the retelling renderer, the offline heuristics and the model prompt all generate themselves from that entry. Adding a fourth framework is a content change.',
-      links: [['frameworks.js', 'src/lib/frameworks.js']],
+        'And–But–Therefore, Situation–Complication–Resolution and STAR are each written down once, as a short description of their beats. The picker, the beat-by-beat verdicts, the retelling and the AI’s instructions are all built from that description — so adding a new shape is like adding a recipe, not rebuilding the kitchen.',
+      links: [['the shapes', 'src/lib/frameworks.js']],
     },
   ]
 
@@ -56,10 +56,20 @@ export function AboutScreen({ onBack, repoUrl }) {
     <div className="screen">
       <h2 className="screen-title">How it’s built 🔧</h2>
       <p className="screen-sub">
-        Six decisions that make the feedback trustworthy rather than merely plausible. Each one links to the code.
+        What happens behind the scenes, in plain English — and the six choices that make the feedback something you can trust. Each one links to the actual code, if you’re curious.
       </p>
 
       <div className="card feedback-card" style={{ maxWidth: 720 }}>
+        <div className="about-section">
+          <h3>🎙️ What happens when you tell a story</h3>
+          <ol className="about-steps">
+            <li><strong>Your voice becomes text.</strong> A speech-to-text service writes down exactly what you said — including the “um”s, which most services quietly delete.</li>
+            <li><strong>The text gets read twice.</strong> Simple rules spot the obvious filler words. An AI judges the tricky ones, and whether your story sets a scene, hits a problem and lands an ending.</li>
+            <li><strong>Everything is checked before you see it.</strong> Any quote the AI uses must really be in your words, or it’s dropped.</li>
+            <li><strong>You tell it again, and it compares.</strong> The second telling is read next to the first, to show what changed.</li>
+          </ol>
+        </div>
+
         {sections.map((s) => (
           <div key={s.title} className="about-section">
             <h3>{s.emoji} {s.title}</h3>
@@ -76,14 +86,14 @@ export function AboutScreen({ onBack, repoUrl }) {
         ))}
 
         <div className="about-section">
-          <h3>🧱 Stack</h3>
+          <h3>🧱 What it’s made of</h3>
           <div className="about-stack">
             {['React 18', 'Vite', 'Deepgram Nova-3', 'Gemini', 'Vercel serverless', 'localStorage'].map((t) => (
               <span key={t} className="signal">{t}</span>
             ))}
           </div>
           <p style={{ marginTop: 10 }}>
-            Local-first by design: your practice data is never synced or stored on a server. To analyse a telling, the audio is sent to Deepgram for transcription and the text to Google Gemini; StoryArc stores neither, and your transcripts and history stay in your own browser, where you can export or clear them from <em>History</em>. Signing in exists only to meter this public demo — the server keeps your Google account id and the seconds you’ve used, nothing more.
+            Your practice history stays in your own browser — StoryArc has no database of your stories. To analyse a telling, the recording goes to Deepgram (speech-to-text) and the text to Google’s Gemini AI; StoryArc keeps neither. You can download or delete your history any time from <em>History</em>. Signing in only exists to give everyone a fair share of time on this free demo: we store your Google account ID and how many seconds you’ve used, nothing else.
           </p>
         </div>
       </div>
