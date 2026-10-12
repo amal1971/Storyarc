@@ -67,6 +67,13 @@ export async function countPaidCall(sub) {
   return { account, today }
 }
 
+// Undo one countPaidCall: used when a call was refused by a cap (it never ran)
+// or failed upstream (the user got nothing for it). Best-effort by design.
+export async function refundPaidCall(sub) {
+  const r = redis()
+  await Promise.all([r.decr(callsKey(sub)), r.decr(dayKey())])
+}
+
 export async function markExhausted(sub, email) {
   const prior = await getUsage(sub).catch(() => null)
   return saveUsage(sub, {

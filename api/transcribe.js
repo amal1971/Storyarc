@@ -11,7 +11,7 @@ const MOCK_ATTEMPT_1 =
 const MOCK_ATTEMPT_2 =
   'Last month I was supposed to run the demo for our biggest client, and the night before I found the staging environment completely broken — white screen, nothing loading. The account team had already flown in, so there was no moving the meeting. I stayed up rebuilding the seed data and, um, rehearsed a backup path on my laptop. In the morning I ran the whole demo locally instead. It went so smoothly the client never knew, and we closed the renewal two weeks later. Now I always keep a local fallback ready before any big demo.'
 
-import { requireActiveSession, chargePaidCall } from './_session.js'
+import { requireActiveSession, chargePaidCall, refundPaidCall } from './_session.js'
 
 async function deepgram(audioBuffer, mimeType) {
   // filler_words=true is the load-bearing param here: Deepgram strips "um"/"uh"
@@ -112,6 +112,7 @@ export default async function handler(req, res) {
   // login, so the guard lives here, not only in the UI.
   const session = await requireActiveSession(req, res)
   if (!session) return
+  let charged = false
   try {
     const { audioBase64, attemptNumber } = req.body || {}
     // Only a short audio/* string is ever a legitimate content type here.
@@ -133,6 +134,7 @@ export default async function handler(req, res) {
     }
 
     if (!(await chargePaidCall(session, res))) return
+    charged = true
     const audioBuffer = Buffer.from(audioBase64, 'base64')
     let out
     if (provider === 'deepgram') out = await deepgram(audioBuffer, mimeType)
@@ -143,6 +145,7 @@ export default async function handler(req, res) {
     return res.status(200).json(out)
   } catch (err) {
     console.error('[transcribe]', err)
+    if (charged) await refundPaidCall(session)
     return res.status(502).json({ error: 'transcription_failed', retryable: true })
   }
 }

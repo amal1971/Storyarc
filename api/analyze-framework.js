@@ -3,7 +3,7 @@
 // added in src/lib/frameworks.js work here with zero endpoint changes.
 import { geminiJSON, geminiConfigured, sendGeminiError, GEMINI_MODEL } from './_gemini.js'
 import { getFramework } from '../src/lib/frameworks.js'
-import { requireActiveSession, chargePaidCall } from './_session.js'
+import { requireActiveSession, chargePaidCall, refundPaidCall } from './_session.js'
 import { rejectOversize } from './_limits.js'
 
 // Bump when the prompt below changes materially. Stored with every result
@@ -138,6 +138,7 @@ export default async function handler(req, res) {
     })
   } catch (err) {
     // Overloaded, out of credit, or failed: never dressed up as a result.
+    await refundPaidCall(session)
     return sendGeminiError(res, err, 'analyze-framework')
   }
 }

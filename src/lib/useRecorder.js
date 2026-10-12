@@ -36,10 +36,19 @@ export function useRecorder({ onStop }) {
   // Leaving the screen mid-recording must not submit the take: stopping the
   // tracks makes MediaRecorder fire onstop, which used to send a paid analysis
   // for a story the user walked away from.
-  useEffect(() => () => {
-    if (mediaRef.current) mediaRef.current.onstop = null
-    if (mediaRef.current?.state === 'recording') mediaRef.current.stop()
-    cleanup()
+  // mountedRef covers the gap the cleanup below can't: the user leaves while
+  // the browser's permission prompt is still open, then grants access. Without
+  // it the recorder started on a dead screen, kept the mic on for three
+  // minutes and then submitted a paid analysis nobody asked for.
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      if (mediaRef.current) mediaRef.current.onstop = null
+      if (mediaRef.current?.state === 'recording') mediaRef.current.stop()
+      cleanup()
+    }
   }, [])
 
   const busyRef = useRef(false)
@@ -84,6 +93,11 @@ export function useRecorder({ onStop }) {
     setStatus('requesting')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      if (!mountedRef.current) {
+        stream.getTracks().forEach((t) => t.stop())
+        busyRef.current = false
+        return
+      }
       streamRef.current = stream
       const rec = new MediaRecorder(stream)
       mediaRef.current = rec

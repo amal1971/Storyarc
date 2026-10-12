@@ -9,7 +9,7 @@ import { geminiJSON, geminiConfigured, sendGeminiError, GEMINI_MODEL } from './_
 // so a saved output can be traced back to the prompt that produced it.
 const COMPARE_PROMPT_VERSION = 'compare-2026-07-24'
 import { getFramework } from '../src/lib/frameworks.js'
-import { requireActiveSession, chargePaidCall } from './_session.js'
+import { requireActiveSession, chargePaidCall, refundPaidCall } from './_session.js'
 import { rejectOversize, cleanSuggestedFix, cleanSteps } from './_limits.js'
 
 const SHARED_RULES = `Rules:
@@ -108,6 +108,7 @@ export default async function handler(req, res) {
     })
   } catch (err) {
     // Overloaded, out of credit, or failed: never dressed up as a result.
+    await refundPaidCall(session)
     return sendGeminiError(res, err, 'compare-attempts')
   }
 }

@@ -2,7 +2,7 @@
 // NOTE: replace PROMPT with the paste-ready version from
 // StoryArc_Task1_Rubrics_Prompts_EvalSet.md before Milestone 2 sign-off.
 import { geminiJSON, geminiConfigured, sendGeminiError, GEMINI_MODEL } from './_gemini.js'
-import { requireActiveSession, chargePaidCall } from './_session.js'
+import { requireActiveSession, chargePaidCall, refundPaidCall } from './_session.js'
 import { rejectOversize } from './_limits.js'
 
 // Bump when the prompt below changes materially. Stored with every result
@@ -66,6 +66,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ ...data, provider: 'gemini', prompt_version: STRUCTURE_PROMPT_VERSION, model: GEMINI_MODEL })
   } catch (err) {
     // Overloaded, out of credit, or failed: never dressed up as a result.
+    await refundPaidCall(session)
     return sendGeminiError(res, err, 'analyze-structure')
   }
 }

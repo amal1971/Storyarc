@@ -133,7 +133,14 @@ export default function App() {
       if (typeof document !== 'undefined' && document.hidden) return
       checkSession()
     }, POLL_MS)
-    return () => clearInterval(id)
+    // Hidden tabs skip polls, so check in (and checkpoint the time used) as
+    // soon as the tab is visible again rather than waiting up to 30 s.
+    const onVisible = () => { if (!document.hidden) checkSession() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [authed]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // When the local countdown reaches zero, ask the server straight away
@@ -237,7 +244,7 @@ export default function App() {
 
   // Everything a run needs is captured up front (ctx), so state changes while
   // a request is in flight — Home, a new round — can't redirect its results.
-  async function runLabAnalysis(input, attemptNumber, ctx) {
+  async function runLabAnalysis(input, attemptNumber, ctx, stale = () => false) {
     const t = await getTranscript(input, attemptNumber)
     const wordCount = countWords(t.text)
     if (wordCount < 10) return { gibberish: true }
@@ -262,7 +269,9 @@ export default function App() {
       wpm,
       inputMode,
     }
-    saveRecord(buildAttemptRecord({
+    // An abandoned run (Home, or "Clear my data" while it was in flight) must
+    // not write into history the user just left or wiped.
+    if (!stale()) saveRecord(buildAttemptRecord({
       pairId: ctx.pairId,
       attemptNumber,
       promptId: ctx.prompt?.id,
@@ -285,7 +294,7 @@ export default function App() {
     return { analysis }
   }
 
-  async function runGymAnalysis(input, attemptNumber, ctx) {
+  async function runGymAnalysis(input, attemptNumber, ctx, stale = () => false) {
     const t = await getTranscript(input, attemptNumber)
     const wordCount = countWords(t.text)
     if (wordCount < 10) return { gibberish: true }
@@ -297,7 +306,9 @@ export default function App() {
     const wpm = wordsPerMinute(wordCount, durationS)
     const inputMode = input.inputMode || 'mic'
     const fillerRateValue = fillerRate(events.length, wordCount)
-    saveRecord(buildAttemptRecord({
+    // An abandoned run (Home, or "Clear my data" while it was in flight) must
+    // not write into history the user just left or wiped.
+    if (!stale()) saveRecord(buildAttemptRecord({
       mode: 'gym',
       frameworkId: ctx.framework.id,
       situationId: ctx.situation?.id,
@@ -353,7 +364,7 @@ export default function App() {
     lastInputRef.current = { input, attemptNumber, analysisMode, ctx, out: sameInput ? prev.out : null }
     try {
       if (analysisMode === 'gym') {
-        const out = lastInputRef.current.out || (await runGymAnalysis(input, attemptNumber, ctx))
+        const out = lastInputRef.current.out || (await runGymAnalysis(input, attemptNumber, ctx, stale))
         if (stale()) return
         if (out.gibberish) return setProcError({ kind: 'gibberish' })
         lastInputRef.current.out = out
@@ -375,7 +386,7 @@ export default function App() {
           showResult('gym-delta')
         }
       } else {
-        const out = lastInputRef.current.out || (await runLabAnalysis(input, attemptNumber, ctx))
+        const out = lastInputRef.current.out || (await runLabAnalysis(input, attemptNumber, ctx, stale))
         if (stale()) return
         if (out.gibberish) return setProcError({ kind: 'gibberish' })
         lastInputRef.current.out = out

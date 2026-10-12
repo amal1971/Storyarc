@@ -3,7 +3,7 @@
 // NOTE: replace PROMPT with the paste-ready version from
 // StoryArc_Filler_Prompt_v2_Generalized.md before Milestone 2 sign-off.
 import { geminiJSON, geminiConfigured, sendGeminiError, GEMINI_MODEL } from './_gemini.js'
-import { requireActiveSession, chargePaidCall } from './_session.js'
+import { requireActiveSession, chargePaidCall, refundPaidCall } from './_session.js'
 import { rejectOversize } from './_limits.js'
 
 // Bump when the prompt below changes materially. Stored with every result
@@ -53,6 +53,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ events, provider: 'gemini', prompt_version: FILLERS_PROMPT_VERSION, model: GEMINI_MODEL })
   } catch (err) {
     // Overloaded, out of credit, or failed: never dressed up as a result.
+    await refundPaidCall(session)
     return sendGeminiError(res, err, 'analyze-fillers')
   }
 }

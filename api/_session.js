@@ -7,7 +7,7 @@
 // checkpoints. Same instinct as the derived signals elsewhere in this app —
 // if it can be computed exactly, don't go ask something else for it.
 import crypto from 'node:crypto'
-import { markExhausted, saveUsage, countPaidCall } from './_usage.js'
+import { markExhausted, refundPaidCall as refundCounters, saveUsage, countPaidCall } from './_usage.js'
 
 const COOKIE_NAME = 'storyarc_session'
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 30
@@ -184,6 +184,21 @@ export async function chargePaidCall(session, res) {
   }
   const reason = counts.today > dailyCallCap() ? 'daily' : counts.account > callsPerAccount() ? 'account' : null
   if (!reason) return true
+  // A refused call never ran, so it must not eat into the account's lifetime
+  // count or the day's budget — otherwise a busy day (or a burst of retries
+  // against the cap) leaves people locked out tomorrow.
+  await refundPaidCall(session)
   res.status(429).json({ error: 'call_limit', reason, retryable: false, configured: true })
   return false
+}
+
+// Give a charged call back when it failed upstream (model overloaded, out of
+// credit, transcription error): the user got nothing, so it shouldn't count.
+export async function refundPaidCall(session) {
+  if (!authEnabled() || session?.unlimited || !session?.sub) return
+  try {
+    await refundCounters(session.sub)
+  } catch (err) {
+    console.warn('[session] call refund skipped:', err.message)
+  }
 }
