@@ -125,7 +125,7 @@ export function LoginGate({ locked = false, lockedEmail = null, onAuthenticated 
 
       <p className="gate-fineprint">
         We store your email address, your Google account ID, and how much time and how many analyses you’ve used — nothing else.
-        Your recording goes to Deepgram (speech-to-text) and the text to Google’s Gemini AI for analysis; StoryArc keeps neither. Your practice history stays in this browser.
+        Your recording goes to Deepgram (speech-to-text) and the text to Google’s Gemini AI for analysis; StoryArc keeps neither. Your practice history stays in this browser. <a href="/privacy.html">Privacy policy</a>
       </p>
     </div>
   )
