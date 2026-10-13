@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="public/og.png" alt="StoryArc — Your story deserves to land. Speak a story, see your filler words and story shape, retell it, see exactly what changed." width="800" />
+  <img src="public/og.png" alt="StoryArc — Your storytelling coach. Find your fillers, fix your flow, tell it like you know." width="800" />
 </p>
 
 <h1 align="center">StoryArc 🎙️</h1>
