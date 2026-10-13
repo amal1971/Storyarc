@@ -8,11 +8,13 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 //   target null → a centred card with no spotlight (used for the welcome).
 // Steps whose target isn't on the page are skipped, so callers can pass the
 // countdown-chip step unconditionally.
+// label: optional name shown above the title ("Story Gym · 1 of 3") — used by
+//   the short per-mode tours that start straight on a spotlight.
 
 const PAD = 10
 const GAP = 16
 
-export function Tour({ steps: allSteps, onClose }) {
+export function Tour({ steps: allSteps, onClose, label }) {
   const steps = allSteps.filter((s) => !s.target || document.querySelector(s.target))
   const [i, setI] = useState(0)
   const [rect, setRect] = useState(null)
@@ -36,7 +38,11 @@ export function Tour({ steps: allSteps, onClose }) {
   useLayoutEffect(() => {
     if (step?.target) {
       const el = document.querySelector(step.target)
-      el?.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' in document.documentElement.style ? 'instant' : 'auto' })
+      const b = el?.getBoundingClientRect()
+      // A tall target (the Gym beat guide on a phone) goes near the top, so
+      // the card fits underneath it instead of covering its last lines.
+      if (b && b.height > window.innerHeight * 0.4) window.scrollBy(0, b.top - 24)
+      else el?.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' in document.documentElement.style ? 'instant' : 'auto' })
     }
     measure()
   }, [step, measure])
@@ -90,6 +96,10 @@ export function Tour({ steps: allSteps, onClose }) {
   }
   const counted = steps.filter((s) => s.target)
   const n = counted.indexOf(step) + 1
+  const intro = i === 0 && !step.target
+  const kicker = !step.target ? 'Quick tour'
+    : label ? (counted.length > 1 ? `${label} · ${n} of ${counted.length}` : label)
+    : `Step ${n} of ${counted.length}`
 
   return (
     <div className={`tour ${reduced ? 'tour--still' : ''}`} onKeyDown={onKeyDown}>
@@ -103,19 +113,19 @@ export function Tour({ steps: allSteps, onClose }) {
           : { left: vw / 2, top: vh / 2, width: 0, height: 0 }}
       />
       <div ref={tipRef} className="tour-tip" role="dialog" aria-modal="true" aria-labelledby="tour-title" aria-describedby="tour-body" style={tipStyle}>
-        <div className="tour-step">{step.target ? `Step ${n} of ${counted.length}` : 'Quick tour'}</div>
+        <div className="tour-step">{kicker}</div>
         <h2 id="tour-title" className="tour-title">{step.title}</h2>
         <p id="tour-body" className="tour-body">{step.body}</p>
         <div className="tour-row">
           <div className="tour-dots" aria-hidden="true">
-            {counted.map((s, k) => <span key={k} className={k < n ? 'on' : ''} />)}
+            {counted.length > 1 && counted.map((s, k) => <span key={k} className={k < n ? 'on' : ''} />)}
           </div>
           <div className="tour-btns">
             {isLast
               ? i > 0 && <button className="tour-link" onClick={back}>Back</button>
-              : <button className="tour-link" onClick={onClose}>{i === 0 ? 'Skip' : 'Skip tour'}</button>}
+              : <button className="tour-link" onClick={onClose}>{intro ? 'Skip' : 'Skip tour'}</button>}
             <button ref={primaryRef} className="tour-primary" onClick={next}>
-              {i === 0 ? 'Show me' : isLast ? 'Got it — let’s go' : 'Next'}
+              {intro ? 'Show me' : isLast ? 'Got it — let’s go' : 'Next'}
             </button>
           </div>
         </div>

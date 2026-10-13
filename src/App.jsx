@@ -22,6 +22,8 @@ import {
 import { fetchSessionStatus, logout } from './lib/auth.js'
 
 const TOUR_KEY = 'storyarc_tour_seen_v1'
+// Short follow-up tours, each shown the first time that mode's pick screen opens.
+const MODE_TOUR_KEYS = { lab: 'storyarc_tour_lab_v1', gym: 'storyarc_tour_gym_v1' }
 
 // Each poll writes the elapsed time to Redis, so it is a real cost: 30 s is
 // plenty for a countdown, and hidden tabs skip it (the signed cookie keeps the
@@ -91,6 +93,7 @@ export default function App() {
   const [auth, setAuth] = useState('checking')
   // First-sign-in tour: shown once per browser, replayable from the footer.
   const [tourOpen, setTourOpen] = useState(false)
+  const [modeTour, setModeTour] = useState(null) // 'lab' | 'gym' | null
   const [limitMins, setLimitMins] = useState(null)
   const [lockedEmail, setLockedEmail] = useState(null)
   const [remaining, setRemaining] = useState(null)
@@ -211,6 +214,14 @@ export default function App() {
     try { seen = localStorage.getItem(TOUR_KEY) === '1' } catch { /* storage blocked: don't nag */ }
     if (!seen) setTourOpen(true)
   }, [signedIn, screen]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Mode tours: the first time someone opens the Lab or Gym pick screen.
+  useEffect(() => {
+    const mode = screen === 'lab-pick' ? 'lab' : screen === 'gym-pick' ? 'gym' : null
+    if (!signedIn || !mode) return setModeTour(null)
+    let seen = true
+    try { seen = localStorage.getItem(MODE_TOUR_KEYS[mode]) === '1' } catch { /* storage blocked: don't nag */ }
+    setModeTour(seen ? null : mode)
+  }, [signedIn, screen])
   useEffect(() => {
     fetch('/api/health')
       .then((r) => (r.ok ? r.json() : null))
@@ -220,6 +231,39 @@ export default function App() {
   const closeTour = () => {
     try { localStorage.setItem(TOUR_KEY, '1') } catch { /* fine */ }
     setTourOpen(false)
+  }
+  const closeModeTour = () => {
+    try { localStorage.setItem(MODE_TOUR_KEYS[modeTour], '1') } catch { /* fine */ }
+    setModeTour(null)
+  }
+  // "Show me around" replays everything, including the per-mode tours.
+  const replayTour = () => {
+    try { Object.values(MODE_TOUR_KEYS).forEach((k) => localStorage.removeItem(k)) } catch { /* fine */ }
+    setTourOpen(true)
+  }
+  const modeTourSteps = {
+    lab: [{
+      target: '[data-tour="lab-story"]',
+      title: 'Pick a story to tell',
+      body: 'Each card is a prompt for a real moment from your life. Tap one, tell it out loud, and we’ll show your filler words and one thing to fix. Got your own story? Use the last card.',
+    }],
+    gym: [
+      {
+        target: '[data-tour="gym-prompt"]',
+        title: 'This is your prompt',
+        body: 'The question you’ll answer out loud, like one you’d get in an interview. Not feeling it? Tap “Give me a different prompt”.',
+      },
+      {
+        target: '[data-tour="gym-shape"]',
+        title: 'Pick a shape to tell it in',
+        body: 'Each card is a storytelling shape. Tap the one you want to practise; ABT is a good first pick.',
+      },
+      {
+        target: '[data-tour="gym-beats"]',
+        title: 'How to use the shape',
+        body: 'These are its beats, in order. Hit each one as you speak. Afterwards we’ll show which beats landed and retell your story in this shape.',
+      },
+    ],
   }
   const capped = authed && !auth.unlimited
   const tourSteps = [
@@ -701,12 +745,13 @@ export default function App() {
       </ErrorBoundary>
 
       {tourOpen && screen === 'start' && <Tour steps={tourSteps} onClose={closeTour} />}
+      {modeTour && <Tour key={modeTour} steps={modeTourSteps[modeTour]} label={modeTour === 'lab' ? 'Story Lab' : 'Story Gym'} onClose={closeModeTour} />}
 
       <footer className="footer">
         <span>Local-first practice data · your history stays in this browser</span>
         <span className="footer-links">
           {screen === 'start' && (
-            <button className="link-btn" onClick={() => setTourOpen(true)}>Show me around</button>
+            <button className="link-btn" onClick={replayTour}>Show me around</button>
           )}
           <button className="link-btn" onClick={() => openSide('about')}>How it’s built</button>
           <button className="link-btn" onClick={() => openSide('history')}>History</button>

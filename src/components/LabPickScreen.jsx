@@ -9,7 +9,7 @@ export function LabPickScreen({ onPick, onBack }) {
       </p>
       <div className="prompt-grid">
         {PROMPTS.map((p, i) => (
-          <button key={p.id} className={`prompt-card tilt-${i % 3}`} onClick={() => onPick(p)}>
+          <button key={p.id} className={`prompt-card tilt-${i % 3}`} data-tour={i === 0 ? 'lab-story' : undefined} onClick={() => onPick(p)}>
             <span className="prompt-emoji">{p.emoji}</span>
             <span className="prompt-text">{p.text}</span>
             <span className="prompt-go" aria-hidden="true">→</span>

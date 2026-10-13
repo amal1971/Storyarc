@@ -29,7 +29,7 @@ export function GymPickScreen({ onStart, onBack, initialFramework, initialSituat
           <span className="gym-step-num">1</span> Your prompt
           <span className="gym-step-hint">this is what you’ll be talking about</span>
         </h3>
-        <div className="situation-panel">
+        <div className="situation-panel" data-tour="gym-prompt">
           <p className="situation-quote">
             <span className="situation-emoji" aria-hidden="true">{situation.emoji}</span>
             <span>{situation.text}</span>
@@ -55,6 +55,7 @@ export function GymPickScreen({ onStart, onBack, initialFramework, initialSituat
             <button
               key={f.id}
               className={`fw-card ${framework.id === f.id ? 'fw-selected' : ''}`}
+              data-tour={framework.id === f.id ? 'gym-shape' : undefined}
               onClick={() => setFramework(f)}
               role="radio"
               aria-checked={framework.id === f.id}
@@ -72,7 +73,7 @@ export function GymPickScreen({ onStart, onBack, initialFramework, initialSituat
 
       {/* Reference material for the chosen shape. Deliberately quiet: it is
           there to glance at, not to click. */}
-      <div className="fw-detail fw-detail--quiet">
+      <div className="fw-detail fw-detail--quiet" data-tour="gym-beats">
         <p className="fw-detail-lead">
           Telling it as <strong>{framework.fullName}</strong> means hitting these in order:
         </p>
