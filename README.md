@@ -6,7 +6,7 @@
 
 <p align="center">
   Tell a short story out loud. See your filler words and your story's shape. Retell it from memory. See exactly what improved.<br/>
-  <strong><a href="https://storyarc-amalsurender1234-6213s-projects.vercel.app">Try it live →</a></strong> · no sign-up · works without a microphone
+  <strong><a href="https://storyarc-amalsurender1234-6213s-projects.vercel.app">Try it live →</a></strong> · free with a Google sign-in
 </p>
 
 ---

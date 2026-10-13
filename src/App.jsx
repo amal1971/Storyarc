@@ -193,7 +193,8 @@ export default function App() {
     pairIdRef.current = null
   }
 
-  const IN_ROUND = ['record1', 'feedback', 'record2', 'processing', 'delta', 'gym-record', 'gym-feedback', 'gym-record2', 'gym-delta']
+  // A finished round (delta / gym-delta) is already saved, so Home needs no confirm there.
+  const IN_ROUND = ['record1', 'feedback', 'record2', 'processing', 'gym-record', 'gym-feedback', 'gym-record2']
   const goHome = () => {
     const live = IN_ROUND.includes(screen) || (['history', 'about'].includes(screen) && IN_ROUND.includes(returnScreenRef.current))
     if (live && !window.confirm('Leave this round? Your progress on this story will be lost.')) return
