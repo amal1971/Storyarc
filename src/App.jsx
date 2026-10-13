@@ -748,7 +748,6 @@ export default function App() {
       {modeTour && <Tour key={modeTour} steps={modeTourSteps[modeTour]} label={modeTour === 'lab' ? 'Story Lab' : 'Story Gym'} onClose={closeModeTour} />}
 
       <footer className="footer">
-        <span>Local-first practice data · your history stays in this browser</span>
         <span className="footer-links">
           {screen === 'start' && (
             <button className="link-btn" onClick={replayTour}>Show me around</button>
